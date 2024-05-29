@@ -1,130 +1,128 @@
 from helpers.generate_order_id import generate_order_id
+from loguru import logger
+
 from fastapi import (
 	FastAPI,
-	status,
-	HTTPException
+	status
 )
 from fastapi.responses import JSONResponse
+
+from helpers.log_setting import (
+	remove_logfile_handler,
+	set_logfile_handler,
+	set_stdout_logger
+)
 from schemas.input_schemas import (
-	SizingInputs
+	MeterByArea,
+	SizingInputs,
+	SizingInputsWithShared
 )
 from schemas.output_schemas import (
 	AcceptedResponse,
-	OrderProcessed,
 	OrderNotFound,
 	OrderNotProcessed,
-	MemberIDNotFound
+	MeterIDNotFound,
+	MILPOutputs,
+	TimeseriesDataNotFound,
+	MeterIDs
 )
 
 
+# Initialize the app
 app = FastAPI(
 	title='REC Sizing API',
-	description='REST API for sizing a REC/CEC.',
-	version='0.1.0'
+	description='REST API for sizing a REC.',
+	version='0.2.0'
 )
 
 
-@app.post('/sizing',
-          description='',
+# Runs when the API is started: set loggers and create / connect to SQLite database ####################################
+@app.on_event('startup')
+def startup_event():
+	# Set up logging
+	set_stdout_logger()
+	app.state.handler = set_logfile_handler('logs')
+
+
+# Runs when the API is closed: remove logger handlers and disconnect SQLite database ###################################
+@app.on_event('shutdown')
+def shutdown_event():
+	# Remove all handlers associated with the logger object
+	remove_logfile_handler(app.state.handler)
+
+
+# GEOGRAPHICAL ENDPOINT ################################################################################################
+@app.post('/search_meters_in_area',
+		  description='Search which meters are located within the geographical '
+					  'circle formed by a point [lat, long] and a radius.',
+		  status_code=status.HTTP_200_OK,
+		  tags=['Search Meter IDs'])
+def search_meters_in_area(inputs_body: MeterByArea) -> MeterIDs:
+	logger.info('[API] Computing REC area and finding meter IDs within that area.')
+	# todo: include function to calculate an area based on the provided inputs
+	#  and check which meter IDs are within thar area
+	found_meters = []
+
+	return JSONResponse(content={'meter_ids': found_meters},
+						status_code=status.HTTP_200_OK)
+
+
+# LAUNCH SIZING ENDPOINTS ##############################################################################################
+@app.post('/sizing_with_shared_asset',
+          description='Perform a sizing MILP where shared assets are considered, '
+					  'i.e., an additional meter ID is included within the REC where a new PV and/or storage '
+					  'asset can be potentially installed.',
           status_code=status.HTTP_202_ACCEPTED,
           tags=['Calculate Sizing'])
-def compute_sizing(inputs_body: SizingInputs) -> AcceptedResponse:
-	# todo: ir buscar os dados, correr sizing e, em paralelo retornar order_id
-	order_id = generate_order_id()
-	response = AcceptedResponse(
-		message='Processing has started. Use the order ID for status updates.',
-		order_id=order_id
-	)
-	return response
+def compute_sizing_with_shared_resources(inputs_body: SizingInputsWithShared) -> AcceptedResponse:
+	# generate an order ID for the user to fetch the results when ready
+	logger.info('[API] Generating unique order ID.')
+	id_order = generate_order_id()
 
-# # Example storage for orders
-# orders_db = {}
-# # Model for the order
-# class OrderResult:
-# 	def __init__(self, order_id: str, result: str, processed: bool = False, error: bool = False):
-# 		self.order_id = order_id
-# 		self.result = result
-# 		self.processed = processed
-# 		self.error = error
-# @app.get('/sizing/{order_id}',
-#          description='Endpoint for retrieving a request results\', provided the order ID.',
-#          responses={
-# 	         202: {'model': OrderNotProcessed, 'description': 'Order found but not yet processed.'},
-# 	         404: {'model': OrderNotFound, 'description': 'Order not found.'},
-# 	         412: {'model': MemberIDNotFound, 'description': 'One or more member IDs not found.'}
-#          },
-#          status_code=status.HTTP_200_OK,
-#          tags=['Retrieve Sizing Results'])
-# def get_sizing_results(order_id: str) -> OrderProcessed:
-# 	# todo: no final apagar as linhas abaixo
-# 	orders_db['123'] = OrderResult(order_id='123', result=None, processed=False)
-# 	orders_db[order_id] = {
-# 		'processed': True,
-# 		'error': False,
-# 		'order_id': order_id
-# 	}
-#
-# 	# Check if the order_id exists in the database
-# 	if order_id in orders_db:
-# 		order = orders_db[order_id]
-#
-# 		# Check if the order is processed
-# 		if order.processed:
-# 			if order.error:
-# 				raise HTTPException(status_code=412, detail='Precondition Failed.')
-# 			else:
-# 				# todo: acrescentar aqui a estrutura de resultados tal como definida em OrderProcessed
-# 				return order
-# 		else:
-# 			# If the order is found but not processed, return 202 Accepted
-# 			return JSONResponse(content={'message': 'Order found but not yet processed.',
-# 			                             'order_id': order.order_id},
-# 			                    status_code=status.HTTP_202_ACCEPTED)
-# 	else:
-# 		# If not found, raise an HTTPException with a 404 status code
-# 		raise HTTPException(status_code=404, detail='Order not found.')
+	return JSONResponse(content={'message': 'Processing has started. Use the order ID for status updates.',
+								 'order_id': id_order},
+						status_code=status.HTTP_202_ACCEPTED)
 
 
+@app.post('/sizing_without_shared_assets',
+          description='Perform a sizing MILP where shared assets are not considered, '
+					  'i.e., new installed PV and/or storage capacities are limited '
+					  'to the existing meter IDs within the REC.',
+          status_code=status.HTTP_202_ACCEPTED,
+          tags=['Calculate Sizing'])
+def compute_sizing_without_shared_resources(inputs_body: SizingInputs) -> AcceptedResponse:
+	# generate an order ID for the user to fetch the results when ready
+	logger.info('[API] Generating unique order ID.')
+	id_order = generate_order_id()
+
+	return JSONResponse(content={'message': 'Processing has started. Use the order ID for status updates.',
+								 'order_id': id_order},
+						status_code=status.HTTP_202_ACCEPTED)
 
 
-
-
-# Example storage for orders
-orders_db = {}
-# Model for the order
-class OrderResult:
-	def __init__(self, order_id: str, result: str, processed: bool = False, error: bool = False):
-		self.order_id = order_id
-		self.result = result
-		self.processed = processed
-		self.error = error
-
+# RETRIEVE SIZING ENDPOINT #############################################################################################
 @app.get('/get_sizing/{order_id}',
-         description='Endpoint for retrieving a request results\', provided the order ID.',
-         responses={
-	         202: {'model': OrderNotProcessed, 'description': 'Order found but not yet processed.'},
-	         404: {'model': OrderNotFound, 'description': 'Order not found.'},
-	         412: {'model': MemberIDNotFound, 'description': 'One or more member IDs not found.'}
-         },
+         summary='Get Sizing Results',
+         description='Endpoint for retrieving the sizing results\', provided the order ID.',
+		 responses={
+			 202: {'model': OrderNotProcessed, 'description': 'Order found but not yet processed.'},
+			 404: {'model': OrderNotFound, 'description': 'Order not found.'},
+			 412: {'model': MeterIDNotFound, 'description': 'One or more meter IDs not found.'},
+			 422: {'model': TimeseriesDataNotFound,
+				   'description': 'One or more data point for one or more meter IDs not found.'}
+		 },
          status_code=status.HTTP_200_OK,
          tags=['Retrieve Sizing Results'])
-def get_prices(order_id: str) -> OrderProcessed:
-	orders_db['123'] = OrderResult(order_id='123', result=None, processed=False)
+def get_sizing_results(order_id: str) -> MILPOutputs:
 	# Check if the order_id exists in the database
-	if order_id in orders_db:
-		order = orders_db[order_id]
+	logger.info('[API] Searching for order ID in local database.')
 
-		# Check if the order is processed
-		if order.processed:
-			if order.error:
-				raise HTTPException(status_code=412, detail='Precondition Failed.')
-			else:
-				return order
-		else:
-			# If the order is found but not processed, return 202 Accepted
-			return JSONResponse(content={'message': 'Order found but not yet processed.',
-			                             'order_id': order.order_id},
-			                    status_code=status.HTTP_202_ACCEPTED)
-	else:
-		# If not found, raise an HTTPException with a 404 status code
-		raise HTTPException(status_code=404, detail='Order not found.')
+	# If the order is not found, return 404 Not Found
+	return JSONResponse(content={'message': 'Order not found.',
+								 'order_id': order_id},
+						status_code=status.HTTP_404_NOT_FOUND)
+
+
+if __name__ == '__main__':
+	import uvicorn
+	uvicorn.run(app, host="127.0.0.1", port=8000)

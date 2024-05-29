@@ -1,4 +1,5 @@
-fastapi==0.109.2
+fastapi==0.104.1
 pydantic==2.5.2
 pydantic-extra-types==2.1.0
 uvicorn==0.24.0.post1
+loguru~=0.7.2
