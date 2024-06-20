@@ -1,0 +1,37 @@
+{
+	"meters_data": {
+
+        "Location": {
+			"Meter#1":[41.17946,-8.59540],
+			"Meter#2":[41.17840,-8.59585]
+		},
+		"Contracted_Power": {
+			"Meter#1":2,
+			"Meter#2":3
+		},
+		"Meter#1": [
+			{"datetime": "2024-05-16T00:00:00Z", "e_c": 5.0, "e_g": 0.0},
+			{"datetime": "2024-05-16T00:15:00Z", "e_c": 6.0, "e_g": 0.0},
+			{"datetime": "2024-05-16T00:30:00Z", "e_c": 7.0, "e_g": 0.0},
+			{"datetime": "2024-05-16T00:45:00Z", "e_c": 8.0, "e_g": 0.0}
+		],
+		"Meter#2": [
+			{"datetime": "2024-05-16T00:00:00Z", "e_c": 3.0, "e_g": 0.0},
+			{"datetime": "2024-05-16T00:15:00Z", "e_c": 2.0, "e_g": 0.0},
+			{"datetime": "2024-05-16T00:30:00Z", "e_c": 1.0, "e_g": 0.0},
+			{"datetime": "2024-05-16T00:45:00Z", "e_c": 0.0, "e_g": 0.0}
+		],
+		"Meter#3": [
+			{"datetime": "2024-05-16T00:00:00Z", "e_c": 0.0, "e_g": 0.0},
+			{"datetime": "2024-05-16T00:15:00Z", "e_c": 0.0, "e_g": 0.0},
+			{"datetime": "2024-05-16T00:30:00Z", "e_c": 0.0, "e_g": 0.0},
+			{"datetime": "2024-05-16T00:45:00Z", "e_c": 0.0, "e_g": 0.0}
+		]
+	},
+	"ERSE_tariffs": [
+		{"datetime": "2024-05-16T00:00:00Z", "buy_tariff": 0.02, "sell_tariff": 0.01},
+		{"datetime": "2024-05-16T00:15:00Z", "buy_tariff": 0.03, "sell_tariff": 0.01},
+		{"datetime": "2024-05-16T00:30:00Z", "buy_tariff": 0.01, "sell_tariff": 0.01},
+		{"datetime": "2024-05-16T00:45:00Z", "buy_tariff": 0.05, "sell_tariff": 0.01}
+	]
+}

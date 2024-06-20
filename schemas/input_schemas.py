@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import datetime
 from itertools import islice
 from pydantic import (
 	BaseModel,
@@ -57,7 +57,35 @@ class SizingParameters(BaseModel):
 					'Note: if no new storage capacity is to be installed set this value to 0.0.',
 		examples=[10.0]
 	)
-
+	l_gic: float = Field(
+		description='Cost of installing new PV, in €/kW. <br />',
+		examples=[10.0]
+	)
+	l_bic: float = Field(
+		description='Cost of installing new battery capacity, in €/kWh. <br />',
+		examples=[10.0]
+	)
+	soc_min: float = Field(
+		description='Minimum state-of-charge of the battery to be installed, in %. <br />',
+		examples=[10.0]
+	)
+	soc_max: float = Field(
+		description='Maximum state-of-charge of the battery to be installed, in %. <br />',
+		examples=[10.0]
+	)
+	eff_bc: float = Field(
+		description='Charging efficiency of the battery to be installed, in %. <br />',
+		examples=[10.0]
+	)
+	eff_bd: float = Field(
+		description='Discharging efficiency of the battery to be installed, in %. <br />',
+		examples=[10.0]
+	)
+	deg_cost: float = Field(
+		description='Degradation cost of the battery to be installed, in %. <br />'
+					'Note: if no new storage capacity is to be installed set this value to 0.0.',
+		examples=[10.0]
+	)
 
 class SizingParametersByMeter(SizingParameters):
 	meter_id: str = Field(
@@ -67,13 +95,13 @@ class SizingParametersByMeter(SizingParameters):
 
 
 class SizingInputs(BaseModel):
-	start_date: date = Field(
+	start_datetime: datetime = Field(
 		description='Start date for the sizing horizon (included in it) in ISO 8601 format.',
-		examples=['2024-05-16']
+		examples=['2024-05-16 00:00:00']
 	)
-	end_date: date = Field(
+	end_datetime: datetime = Field(
 		description='End date for the sizing horizon (included in it) in ISO 8601 format.',
-		examples=['2024-05-17']
+		examples=['2024-05-16 00:45:00']
 	)
 	nr_representative_days: int = Field(
 		ge=0,
@@ -94,10 +122,10 @@ class SizingInputs(BaseModel):
 					'behind the meter IDs of the REC.'
 	)
 
-	@field_validator('end_date')
+	@field_validator('end_datetime')
 	def is_end_after_start(cls, end_dt, values):
-		start_dt = values.data['start_date']
-		assert end_dt > start_dt, 'end_date <= start_date'
+		start_dt = values.data['start_datetime']
+		assert end_dt > start_dt, 'end_datetime <= start_datetime'
 		return end_dt
 
 
@@ -115,6 +143,10 @@ class Ownership(BaseModel):
 
 
 class SizingInputsWithShared(SizingInputs):
+	shared_meter_id: str = Field(
+		description='The string that unequivocally identifies the meter ID that will be shared.',
+		examples=["Meter#3"]
+	)
 	ownerships: List[Ownership] = Field(
 		description='List of ownership percentages of meter ID responsible for the new shared meter. '
 					'Note: meter ID that don\'t have a percentage over the new meter are not required '

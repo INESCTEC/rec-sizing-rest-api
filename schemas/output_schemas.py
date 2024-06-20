@@ -91,10 +91,30 @@ class IndividualCosts(BaseModel):
 		examples=['Meter#1']
 	)
 	individual_cost: float = Field(
+		description='The total cost (operation + investment) for the optimization horizon calculated for '
+					'the individual/member, without considering the cost for degradation of the BESS, in €. '
+					'It includes the costs of the shared assets'
+	)
+	individual_savings: float = Field(
+		description='Total savings obtained for that meter ID, in €. <br />'
+					'This represents the difference between the cost obtained for the individual/member after running the sizing '
+					'algorithm, considering the possibility to install new PV and/or storage capacities '
+					'behind-the-meter, and the respective operation cost for the same period, without that possibility, '
+					'i.e., by simply operating in an optimal fashion the assets that are already installed in the '
+					'meter.'
+	)
+
+
+class MeterCosts(BaseModel):
+	meter_id: str = Field(
+		description='The string that identifies the meter of the REC.',
+		examples=['Meter#1']
+	)
+	meter_cost: float = Field(
 		description='The total cost (operation + investment) for the optimization horizon calculated for the meter ID, '
 					'without considering the cost for degradation of the BESS, in €.'
 	)
-	individual_savings: float = Field(
+	meter_savings: float = Field(
 		description='Total savings obtained for that meter ID, in €. <br />'
 					'This represents the difference between the cost obtained for the meter after running the sizing '
 					'algorithm, considering the possibility to install new PV and/or storage capacities '
@@ -140,6 +160,13 @@ class InvestmentsPerMeter(BaseModel):
 	total_storage: float = Field(
 		description='Total storage capacity in the meter, that equals the pre-installed capacity plus the '
 					'newly installed capacity, in kWh.'
+	)
+	retailer_exchange_costs: float = Field(
+		description='The total cost of buying and selling energy from/to the retailer, in €.'
+	)
+
+	sc_tariffs_costs: float = Field(
+		description='The total grid access costs when self-consuming in the REC, in €.'
 	)
 
 
@@ -259,7 +286,10 @@ class MILPOutputs(BaseModel):
 		examples=[5.0]
 	)
 	individual_costs: list[IndividualCosts] = Field(
-		description='Individual total cost (operation + investment) per meter ID, in €.'
+		description='Individual total cost (operation + investment) per individual/member, in €.'
+	)
+	meter_costs: list[MeterCosts] = Field(
+		description='Meter total cost (operation + investment) per meter ID, in €.'
 	)
 	meter_investment_outputs: list[InvestmentsPerMeter] = Field(
 		description='List of meters with the respective non time variable results.'
