@@ -32,6 +32,13 @@ from schemas.output_schemas import (
 	TimeseriesDataNotFound,
 	MeterIDs
 )
+from helpers.dataspace_interactions import (
+	dataspace_connection,
+	load_dotenv,
+	retrieve_data
+)
+
+
 
 # from rec_sizing.custom_types.collective_milp_pool_types import (
 # 	BackpackCollectivePoolDict,
@@ -45,6 +52,17 @@ app = FastAPI(
 	version='0.2.0'
 )
 
+# Set up logging
+set_stdout_logger()
+app.state.handler = set_logfile_handler('logs')
+
+# DATASPACE INTERACTIONS ###############################################################################################
+# Load environment variables
+config = load_dotenv()
+# Connect to dataspace
+dataspace_connection = dataspace_connection(config)
+# Retrieve CEVE data
+CEVE_data = retrieve_data(dataspace_connection, config)
 
 # Runs when the API is started: set loggers and create / connect to SQLite database ####################################
 @app.on_event('startup')

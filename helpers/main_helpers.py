@@ -127,45 +127,23 @@ def milp_return_structure(cursor: sqlite3.Cursor,
 	# INDIVIDUAL COSTS #################################################################################################
 	# Retrieve the individual costs calculated for the order ID
 	cursor.execute('''
-		SELECT * FROM Individual_Costs WHERE order_id = ?
+		SELECT * FROM Member_Costs WHERE order_id = ?
 	''', (order_id,))
-	individual_costs = cursor.fetchall()
+	member_costs = cursor.fetchall()
 
 	# Convert to dataframe for easy manipulation
-	individual_costs_df = pd.DataFrame(individual_costs)
-	individual_costs_df.columns = ['index', 'order_id', 'meter_id', 'individual_cost', 'individual_savings']
-	del individual_costs_df['index']
-	del individual_costs_df['order_id']
+	member_costs_df = pd.DataFrame(member_costs)
+	member_costs_df.columns = ['index', 'order_id', 'meter_id', 'member_cost', 'member_cost_compensation', 'member_savings']
+	del member_costs_df['index']
+	del member_costs_df['order_id']
 
 	# Create final dictionary substructure
-	individual_investments_outputs_dict = {
-		'individual_costs': individual_costs_df.to_dict('records')
+	member_costs_outputs_dict = {
+		'member_costs': member_costs_df.to_dict('records')
 	}
 
 	# Update the return dictionary
-	milp_return.update(individual_investments_outputs_dict)
-
-
-	# METER COSTS #################################################################################################
-	# Retrieve the individual costs calculated for the order ID
-	cursor.execute('''
-		SELECT * FROM Meter_Costs WHERE order_id = ?
-	''', (order_id,))
-	meter_costs = cursor.fetchall()
-
-	# Convert to dataframe for easy manipulation
-	meter_costs_df = pd.DataFrame(meter_costs)
-	meter_costs_df.columns = ['index', 'order_id', 'meter_id', 'meter_cost', 'meter_savings']
-	del meter_costs_df['index']
-	del meter_costs_df['order_id']
-
-	# Create final dictionary substructure
-	meter_investments_outputs_dict = {
-		'meter_costs': meter_costs_df.to_dict('records')
-	}
-
-	# Update the return dictionary
-	milp_return.update(meter_investments_outputs_dict)
+	milp_return.update(member_costs_outputs_dict)
 
 
 
@@ -178,18 +156,19 @@ def milp_return_structure(cursor: sqlite3.Cursor,
 
 	# Convert to dataframe for easy manipulation
 	meter_investments_outputs_df = pd.DataFrame(meter_investments_outputs)
-	meter_investments_outputs_df.columns = ['index', 'order_id', 'meter_id', 'individual_cost', 'individual_savings', 'installed_pv',
-				'installed_storage', 'total_pv', 'total_storage', 'contracted_power', 'retailer_exchange_costs', 'sc_tariffs_costs']
+	meter_investments_outputs_df.columns = ['index', 'order_id', 'meter_id', 'installation_cost', 'installation_cost_compensation', 'installation_savings',
+				 'installed_pv', 'pv_investment_cost', 'installed_storage', 'storage_investment_cost', 'total_pv', 'total_storage',
+				 'contracted_power', 'contracted_power_cost', 'retailer_exchange_costs', 'sc_tariffs_costs']
 	del meter_investments_outputs_df['index']
 	del meter_investments_outputs_df['order_id']
 
 	# Create final dictionary substructure
-	individual_costs_dict = {
+	meter_investments_outputs_dict = {
 		'meter_investments_outputs': meter_investments_outputs_df.to_dict('records')
 	}
 
 	# Update the return dictionary
-	milp_return.update(individual_costs_dict)
+	milp_return.update(meter_investments_outputs_dict)
 
 
 

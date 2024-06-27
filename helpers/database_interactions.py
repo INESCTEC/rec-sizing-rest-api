@@ -43,25 +43,16 @@ def connect_to_sqlite_db() -> (sqlite3.Connection, sqlite3.Cursor):
         )
         ''')
 
-        # Create the Individual_Costs, for main individual outputs
-        curs.execute('''
-        CREATE TABLE Individual_Costs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        order_id TEXT,
-        meter_id TEXT,
-        individual_cost REAL,
-        individual_savings REAL,
-        FOREIGN KEY(order_id) REFERENCES Orders(order_id)
-        )
-        ''')
+
         # Create the Meter_Costs, for outputs that are dependent on the meter ID but not time-varying
         curs.execute('''
-        CREATE TABLE Meter_Costs (
+        CREATE TABLE Member_Costs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         order_id TEXT,
         meter_id TEXT,
-        meter_cost REAL,
-        meter_savings REAL,
+        member_cost REAL,
+        member_cost_compensation REAL,
+        member_savings REAL,
         FOREIGN KEY(order_id) REFERENCES Orders(order_id)
         )
         ''')
@@ -73,13 +64,17 @@ def connect_to_sqlite_db() -> (sqlite3.Connection, sqlite3.Cursor):
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         order_id TEXT,
         meter_id TEXT,
-        individual_cost REAL,
-        individual_savings REAL,
+        installation_cost REAL,
+        installation_cost_compensation REAL,
+        installation_savings REAL,
         installed_pv REAL,
+        pv_investment_cost REAL,
         installed_storage REAL,
+        storage_investment_cost REAL,
         total_pv REAL,
         total_storage REAL,
         contracted_power REAL,
+        contracted_power_cost REAL,
         retailer_exchange_costs REAL,
         sc_tariffs_costs REAL,
         FOREIGN KEY(order_id) REFERENCES Orders(order_id)

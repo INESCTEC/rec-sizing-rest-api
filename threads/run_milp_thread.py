@@ -17,6 +17,7 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 	logger.info('[THREAD] Fetching data from dataspace.')
 	data_df, list_of_datetimes, missing_ids, missing_dts = fetch_dataspace(user_params)
 	meter_ids = set(data_df['meter_id'])
+	print('meter_ids ', meter_ids)
 	print('data_df: \n', data_df)
 	print('missing_ids', missing_ids)
 	print('missing_dts', missing_dts)
@@ -56,9 +57,19 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 		results = run_pre_collective_pool_milp(inputs)
 		print('results', results.keys())
 		print('results', results['e_alc'])
-
 		# Create the INPUTS_OWNERSHIP_PP dictionary
 		INPUTS_OWNERSHIP_PP = {'ownership': {}}
+		if hasattr(user_params, 'shared_meter_id'):
+			for meter in [i for i in meter_ids if i != user_params.shared_meter_id]:
+				# Add the percentage for the meter
+				INPUTS_OWNERSHIP_PP['ownership'][meter] = {meter: 1.0}
+		else:
+			for meter in meter_ids:
+				# Add the percentage for the meter
+				INPUTS_OWNERSHIP_PP['ownership'][meter] = {meter: 1.0}
+
+		print('''INPUTS_OWNERSHIP_PP['ownership'][meter] = {meter: 1.0}''', INPUTS_OWNERSHIP_PP)
+
 		if hasattr(user_params, 'shared_meter_id'):
 			# Add ownership for each meter
 			shared_meter = user_params.shared_meter_id
@@ -66,16 +77,14 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 				meter_id = ownership.meter_id
 				percentage = ownership.percentage
 
-				# Add the percentage for the meter
-				INPUTS_OWNERSHIP_PP['ownership'][meter_id] = {meter_id: 1.0}
 
 			# Add shared meter ownership
-			shared_meter_ownership = {}
 			for i, ownership in enumerate(user_params.ownerships, start=1):
 				meter_id = ownership.meter_id
 				percentage = ownership.percentage
 
 				# Calculate the shared meter ownership percentage
+				shared_meter_ownership={}
 				shared_meter_ownership[meter_id] = percentage / 100
 
 			shared_meter_key = user_params.shared_meter_id
@@ -110,45 +119,52 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 			results['milp_status'],
 			round(results_pp['obj_value'], 2)
 		))
-
-		for meter_id in shared_meter_ownership.keys():
-			curs.execute('''
-				INSERT INTO Individual_Costs (order_id, meter_id, individual_cost, individual_savings)
-				VALUES (?, ?, ?, ?)
-			''', (
-				id_order,
-				meter_id,
-				round(results_pp['installation_cost_compensations'][meter_id]
-					  + shared_meter_ownership[meter_id]
-					  * results_pp['installation_cost_compensations'][shared_meter], 2),
-				0
-			))
+		#todo: this
+		if hasattr(user_params, 'shared_meter_id'):
+			for meter_id in [i for i in meter_ids if i != user_params.shared_meter_id]:
+				curs.execute('''
+					INSERT INTO Member_Costs (order_id, meter_id, member_cost, member_cost_compensation, member_savings)
+					VALUES (?, ?, ?, ?, ?)
+				''', (
+					id_order,
+					meter_id,
+					round(results_pp['member_cost'][meter_id],2),
+					round(results_pp['member_cost_compensations'][meter_id],2),
+					0
+				))
+		else:
+			for meter_id in meter_ids:
+				curs.execute('''
+									INSERT INTO Member_Costs (order_id, meter_id, member_cost, member_cost_compensation, member_savings)
+									VALUES (?, ?, ?, ?, ?)
+								''', (
+					id_order,
+					meter_id,
+					round(results_pp['member_cost'][meter_id], 2),
+					round(results_pp['member_cost_compensations'][meter_id], 2),
+					0
+				))
 
 		for meter_id in meter_ids:
 			curs.execute('''
-				INSERT INTO Meter_Costs (order_id, meter_id, meter_cost, meter_savings)
-				VALUES (?, ?, ?, ?)
-			''', (
-				id_order,
-				meter_id,
-				round(results_pp['installation_cost_compensations'][meter_id], 2),
-				0
-			))
-
-			curs.execute('''
-				INSERT INTO Meter_Investment_Outputs (order_id, meter_id, individual_cost, individual_savings, installed_pv,
-				installed_storage, total_pv, total_storage, contracted_power, retailer_exchange_costs, sc_tariffs_costs)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				INSERT INTO Meter_Investment_Outputs (order_id, meter_id, installation_cost, installation_cost_compensation, installation_savings,
+				 installed_pv, pv_investment_cost, installed_storage, storage_investment_cost, total_pv, total_storage, 
+				 contracted_power, contracted_power_cost, retailer_exchange_costs, sc_tariffs_costs)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			''', (
 				id_order,
 				meter_id,
 				results_pp['installation_cost_compensations'][meter_id],
+				results_pp['installation_cost_compensations'][meter_id],
 				0,
 				results_pp['p_gn_new'][meter_id],
+				results_pp['PV_investments_cost'][meter_id],
 				results_pp['e_bn_new'][meter_id],
+				results_pp['batteries_investments_cost'][meter_id],
 				results_pp['p_gn_total'][meter_id],
 				results_pp['e_bn_total'][meter_id],
 				results_pp['p_cont'][meter_id],
+				results_pp['contractedpower_cost'][meter_id],
 				sum(results_pp['e_sup'][meter_id]),
 				sum(results_pp['e_slc_pool'][meter_id])
 			))
