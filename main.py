@@ -1,23 +1,24 @@
 import threading
-from helpers.main_helpers import generate_order_id
-from loguru import logger
+import warnings
 
 from fastapi import (
 	FastAPI,
 	status
 )
 from fastapi.responses import JSONResponse
-from helpers.dataspace_interactions import fetch_meters_location
+from loguru import logger
 
 from helpers.database_interactions import connect_to_sqlite_db
+from helpers.dataspace_interactions import fetch_meters_location
 from helpers.log_setting import (
 	remove_logfile_handler,
 	set_logfile_handler,
 	set_stdout_logger
 )
-
-from helpers.main_helpers import milp_return_structure
-from threads.run_milp_thread import run_dual_thread
+from helpers.main_helpers import (
+	generate_order_id,
+	milp_return_structure
+)
 from schemas.input_schemas import (
 	MeterByArea,
 	SizingInputs,
@@ -32,11 +33,11 @@ from schemas.output_schemas import (
 	TimeseriesDataNotFound,
 	MeterIDs
 )
+from threads.run_milp_thread import run_dual_thread
 
-# from rec_sizing.custom_types.collective_milp_pool_types import (
-# 	BackpackCollectivePoolDict,
-# 	OutputsCollectivePoolDict
-# )
+
+# Silence deprecation warning for startup and shutdown events
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # Initialize the app
 app = FastAPI(
@@ -44,6 +45,10 @@ app = FastAPI(
 	description='REST API for sizing a REC.',
 	version='0.2.0'
 )
+
+# Set up logging
+set_stdout_logger()
+app.state.handler = set_logfile_handler('logs')
 
 
 # Runs when the API is started: set loggers and create / connect to SQLite database ####################################
@@ -74,7 +79,7 @@ def shutdown_event():
 		  status_code=status.HTTP_200_OK,
 		  tags=['Search Meter IDs'])
 def search_meters_in_area(inputs_body: MeterByArea) -> MeterIDs:
-	logger.info('[API] Computing REC area and finding meter IDs within that area.')
+	logger.info('Computing REC area and finding meter IDs within that area.')
 	found_meters = fetch_meters_location(inputs_body)
 	return JSONResponse(content=found_meters.dict(), status_code=status.HTTP_200_OK)
 
@@ -88,11 +93,11 @@ def search_meters_in_area(inputs_body: MeterByArea) -> MeterIDs:
           tags=['Calculate Sizing'])
 def compute_sizing_with_shared_resources(inputs_body: SizingInputsWithShared) -> AcceptedResponse:
 	# generate an order ID for the user to fetch the results when ready
-	logger.info('[API] Generating unique order ID.')
+	logger.info('Generating unique order ID.')
 	id_order = generate_order_id()
 
 	# update the database with the new order ID
-	logger.info('[API] Creating registry in database for new order ID.')
+	logger.info('Creating registry in database for new order ID.')
 	app.state.cursor.execute('''
 				INSERT INTO Orders (order_id, processed, error, message)
 				VALUES (?, ?, ?, ?)
@@ -101,7 +106,7 @@ def compute_sizing_with_shared_resources(inputs_body: SizingInputsWithShared) ->
 
 	# initiate a parallel process (thread) to start computing the prices
 	# while a message is immediately sent to the user
-	logger.info('[API] Launching thread.')
+	logger.info('Launching thread.')
 	threading.Thread(target=run_dual_thread,
 					 args=(inputs_body, id_order, app.state.conn, app.state.cursor)).start()
 
@@ -118,11 +123,11 @@ def compute_sizing_with_shared_resources(inputs_body: SizingInputsWithShared) ->
           tags=['Calculate Sizing'])
 def compute_sizing_without_shared_resources(inputs_body: SizingInputs) -> AcceptedResponse:
 	# generate an order ID for the user to fetch the results when ready
-	logger.info('[API] Generating unique order ID.')
+	logger.info('Generating unique order ID.')
 	id_order = generate_order_id()
 
 	# update the database with the new order ID
-	logger.info('[API] Creating registry in database for new order ID.')
+	logger.info('Creating registry in database for new order ID.')
 	app.state.cursor.execute('''
 				INSERT INTO Orders (order_id, processed, error, message)
 				VALUES (?, ?, ?, ?)
@@ -131,7 +136,7 @@ def compute_sizing_without_shared_resources(inputs_body: SizingInputs) -> Accept
 
 	# initiate a parallel process (thread) to start computing the prices
 	# while a message is immediately sent to the user
-	logger.info('[API] Launching thread.')
+	logger.info('Launching thread.')
 	threading.Thread(target=run_dual_thread,
 					 args=(inputs_body, id_order, app.state.conn, app.state.cursor)).start()
 
@@ -155,7 +160,7 @@ def compute_sizing_without_shared_resources(inputs_body: SizingInputs) -> Accept
          tags=['Retrieve Sizing Results'])
 def get_sizing_results(order_id: str) -> MILPOutputs:
 	# Check if the order_id exists in the database
-	logger.info('[API] Searching for order ID in local database.')
+	logger.info('Searching for order ID in local database.')
 	app.state.cursor.execute('''
 		SELECT * FROM Orders WHERE order_id = ?
 	''', (order_id,))
@@ -164,14 +169,14 @@ def get_sizing_results(order_id: str) -> MILPOutputs:
 	order = app.state.cursor.fetchone()
 
 	if order is not None:
-		logger.info('[API] Order ID found. Checking if order has already been processed.')
+		logger.info('Order ID found. Checking if order has already been processed.')
 		processed = bool(order[1])
 		error = order[2]
 		message = order[3]
 
 		# Check if the order is processed
 		if processed:
-			logger.info('[API] Order ID processed. Checking if process raised error.')
+			logger.info('Order ID processed. Checking if process raised error.')
 			if error == '412':
 				# If the order is found but was met with missing meter ID(s)
 				return JSONResponse(content={'message': message,
@@ -185,10 +190,10 @@ def get_sizing_results(order_id: str) -> MILPOutputs:
 									status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
 			else:
-				logger.info('[API] Order ID correctly processed. Fetching outputs.')
+				logger.info('Order ID correctly processed. Fetching outputs.')
 				# If the order resulted from a request to a "vanilla" endpoint,
 				# prepare the response message accordingly
-				milp_return = milp_return_structure(app.state.cursor, order_id, 'pool')
+				milp_return = milp_return_structure(app.state.cursor, order_id)
 
 				return JSONResponse(content=milp_return,
 									status_code=status.HTTP_200_OK)
@@ -208,4 +213,4 @@ def get_sizing_results(order_id: str) -> MILPOutputs:
 
 if __name__ == '__main__':
 	import uvicorn
-	uvicorn.run(app, host="127.0.0.1", port=8000)
+	uvicorn.run(app, host="127.0.0.1", port=8001)

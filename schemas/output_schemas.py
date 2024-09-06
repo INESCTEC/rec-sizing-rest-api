@@ -91,9 +91,9 @@ class IndividualCosts(BaseModel):
 		examples=['Meter#1']
 	)
 	individual_cost: float = Field(
-		description='The total cost (operation + investment) for the optimization horizon calculated for '
-					'the individual/member, without considering the cost for degradation of the BESS, in €. '
-					'It includes the costs of the shared assets'
+		description='The total cost (operation + investment) for the optimization horizon calculated for the individual/member, '
+					'without considering the cost for degradation of the BESS, in €. It includes'
+					'the costs of the shared assets'
 	)
 	individual_savings: float = Field(
 		description='Total savings obtained for that meter ID, in €. <br />'
@@ -103,7 +103,6 @@ class IndividualCosts(BaseModel):
 					'i.e., by simply operating in an optimal fashion the assets that are already installed in the '
 					'meter.'
 	)
-
 
 class MeterCosts(BaseModel):
 	meter_id: str = Field(
@@ -122,7 +121,6 @@ class MeterCosts(BaseModel):
 					'i.e., by simply operating in an optimal fashion the assets that are already installed in the '
 					'meter.'
 	)
-
 
 class InvestmentsPerMeter(BaseModel):
 	meter_id: str = Field(
@@ -168,7 +166,6 @@ class InvestmentsPerMeter(BaseModel):
 	sc_tariffs_costs: float = Field(
 		description='The total grid access costs when self-consuming in the REC, in €.'
 	)
-
 
 class InputsPerMeterAndDatetime(BaseModel):
 	meter_id: str = Field(

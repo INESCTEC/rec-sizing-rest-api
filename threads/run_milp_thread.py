@@ -14,17 +14,13 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 					conn: sqlite3.Connection,
 					curs: sqlite3.Cursor):
 	# get the necessary meters' data from the dataspace
-	logger.info('[THREAD] Fetching data from dataspace.')
-	data_df, list_of_datetimes, missing_ids, missing_dts = fetch_dataspace(user_params)
-	meter_ids = set(data_df['meter_id'])
-	print('data_df: \n', data_df)
-	print('missing_ids', missing_ids)
-	print('missing_dts', missing_dts)
+	logger.info('Fetching data from dataspace.')
+	data_df, sc_series, list_of_datetimes, missing_ids, missing_dts = fetch_dataspace(user_params)
 
 	# if any missing meter ids or missing datetimes in the data for those meter ids was found,
 	# update the database with an error and an indication of which data is missing
 	if missing_ids:
-		logger.warning('[THREAD] Missing meter IDs in dataspace.')
+		logger.warning('Missing meter IDs in dataspace.')
 		message = f'One or more meter IDs not found on registry system: {missing_ids}'
 		curs.execute('''
 			UPDATE Orders
@@ -33,7 +29,7 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 		''', (True, '412', message, id_order))
 
 	elif any(missing_dts.values()):
-		logger.warning('[THREAD] Missing data points in dataspace.')
+		logger.warning('Missing data points in dataspace.')
 		missing_pairs = {k: v for k, v in missing_dts.items() if v}
 		message = f'One or more data point for one or more meter IDs not found on registry system: {missing_pairs}'
 		curs.execute('''
@@ -44,57 +40,40 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 
 	# otherwise, proceed normally
 	else:
+		# get the set of meter ids requested
+		meter_ids = set(data_df['meter_id'])
 		# prepare the inputs for the MILP
-		logger.info('[THREAD] Building inputs.')
-
-		inputs = milp_inputs(user_params, data_df)
-		print('inputs: \n', inputs)
-
+		logger.info('Building inputs.')
+		inputs = milp_inputs(user_params, data_df, sc_series)
 		# run optimization
-		logger.info('[THREAD] Running MILP.')
-		print('inputs[''l_grid'']', inputs['l_grid'])
+		logger.info('Running MILP.')
 		results = run_pre_collective_pool_milp(inputs)
-		print('results', results.keys())
-		print('results', results['e_alc'])
-
 		# Create the INPUTS_OWNERSHIP_PP dictionary
 		INPUTS_OWNERSHIP_PP = {'ownership': {}}
 		if hasattr(user_params, 'shared_meter_id'):
-			# Add ownership for each meter
-			shared_meter = user_params.shared_meter_id
-			for i, ownership in enumerate(user_params.ownerships, start=1):
-				meter_id = ownership.meter_id
-				percentage = ownership.percentage
-
+			for meter in [i for i in meter_ids if i != user_params.shared_meter_id]:
 				# Add the percentage for the meter
-				INPUTS_OWNERSHIP_PP['ownership'][meter_id] = {meter_id: 1.0}
+				INPUTS_OWNERSHIP_PP['ownership'][meter] = {meter: 1.0}
+		else:
+			for meter in meter_ids:
+				# Add the percentage for the meter
+				INPUTS_OWNERSHIP_PP['ownership'][meter] = {meter: 1.0}
 
+		if hasattr(user_params, 'shared_meter_id'):
 			# Add shared meter ownership
-			shared_meter_ownership = {}
 			for i, ownership in enumerate(user_params.ownerships, start=1):
 				meter_id = ownership.meter_id
 				percentage = ownership.percentage
-
 				# Calculate the shared meter ownership percentage
-				shared_meter_ownership[meter_id] = percentage / 100
-
+				shared_meter_ownership = {meter_id: percentage / 100}
 			shared_meter_key = user_params.shared_meter_id
 			# Add shared meter ownership to INPUTS_OWNERSHIP_PP
 			INPUTS_OWNERSHIP_PP['ownership'][shared_meter_key] = shared_meter_ownership
-			print(INPUTS_OWNERSHIP_PP)
 
-		results_pp = run_post_processing(results,inputs,INPUTS_OWNERSHIP_PP)
-		print(results_pp)
-		print('list_of_datetimes', list_of_datetimes)
-		print('results_pp[''dual_prices'']', results_pp['dual_prices'])
-		print(len(list_of_datetimes))
-		print(len(results_pp['dual_prices']))
-
-
-
+		results_pp = run_post_processing(results, inputs, INPUTS_OWNERSHIP_PP)
 
 		# update the database with the new order ID
-		logger.info('[THREAD] Updating database with results.')
+		logger.info('Updating database with results.')
 		curs.execute('''
 			UPDATE Orders
 			SET processed = ?
@@ -110,45 +89,53 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 			results['milp_status'],
 			round(results_pp['obj_value'], 2)
 		))
-
-		for meter_id in shared_meter_ownership.keys():
-			curs.execute('''
-				INSERT INTO Individual_Costs (order_id, meter_id, individual_cost, individual_savings)
-				VALUES (?, ?, ?, ?)
-			''', (
-				id_order,
-				meter_id,
-				round(results_pp['installation_cost_compensations'][meter_id]
-					  + shared_meter_ownership[meter_id]
-					  * results_pp['installation_cost_compensations'][shared_meter], 2),
-				0
-			))
+		# todo: this
+		if hasattr(user_params, 'shared_meter_id'):
+			for meter_id in [i for i in meter_ids if i != user_params.shared_meter_id]:
+				curs.execute('''
+					INSERT INTO Member_Costs (order_id, meter_id, member_cost, member_cost_compensation, member_savings)
+					VALUES (?, ?, ?, ?, ?)
+				''', (
+					id_order,
+					meter_id,
+					round(results_pp['member_cost'][meter_id], 2),
+					round(results_pp['member_cost_compensations'][meter_id], 2),
+					0
+				))
+		else:
+			for meter_id in meter_ids:
+				curs.execute('''
+									INSERT INTO Member_Costs (order_id, meter_id, member_cost, member_cost_compensation, member_savings)
+									VALUES (?, ?, ?, ?, ?)
+								''', (
+					id_order,
+					meter_id,
+					round(results_pp['member_cost'][meter_id], 2),
+					round(results_pp['member_cost_compensations'][meter_id], 2),
+					0
+				))
 
 		for meter_id in meter_ids:
 			curs.execute('''
-				INSERT INTO Meter_Costs (order_id, meter_id, meter_cost, meter_savings)
-				VALUES (?, ?, ?, ?)
-			''', (
-				id_order,
-				meter_id,
-				round(results_pp['installation_cost_compensations'][meter_id], 2),
-				0
-			))
-
-			curs.execute('''
-				INSERT INTO Meter_Investment_Outputs (order_id, meter_id, individual_cost, individual_savings, installed_pv,
-				installed_storage, total_pv, total_storage, contracted_power, retailer_exchange_costs, sc_tariffs_costs)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				INSERT INTO Meter_Investment_Outputs (
+				order_id, meter_id, installation_cost, installation_cost_compensation, installation_savings, 
+				installed_pv, pv_investment_cost, installed_storage, storage_investment_cost, total_pv, total_storage, 
+				contracted_power, contracted_power_cost, retailer_exchange_costs, sc_tariffs_costs)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			''', (
 				id_order,
 				meter_id,
 				results_pp['installation_cost_compensations'][meter_id],
+				results_pp['installation_cost_compensations'][meter_id],
 				0,
 				results_pp['p_gn_new'][meter_id],
+				results_pp['PV_investments_cost'][meter_id],
 				results_pp['e_bn_new'][meter_id],
+				results_pp['batteries_investments_cost'][meter_id],
 				results_pp['p_gn_total'][meter_id],
 				results_pp['e_bn_total'][meter_id],
 				results_pp['p_cont'][meter_id],
+				results_pp['contractedpower_cost'][meter_id],
 				sum(results_pp['e_sup'][meter_id]),
 				sum(results_pp['e_slc_pool'][meter_id])
 			))
@@ -164,7 +151,6 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 				results_pp['dual_prices'][idx]
 			))
 
-
 			curs.execute('''
 				INSERT INTO Pool_Self_Consumption_Tariffs (order_id, datetime, self_consumption_tariff)
 				VALUES (?, ?, ?)
@@ -174,10 +160,7 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 				inputs['l_grid'][idx]
 			))
 
-
-
-
-			#todo: energy_generated é, na verdade,e_g_factor
+			# todo: energy_generated é, na verdade,e_g_factor
 			for meter_id in meter_ids:
 				curs.execute('''
 					INSERT INTO Meter_Operation_Inputs (order_id, meter_id, datetime, energy_generated, 
@@ -212,8 +195,6 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 					results_pp['e_bat'][meter_id][idx]
 				))
 
-
-
 		conn.commit()
 
-		logger.info('[THREAD] Finished!')
+		logger.info('Finished!')

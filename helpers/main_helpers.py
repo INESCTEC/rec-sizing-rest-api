@@ -1,22 +1,15 @@
 import pandas as pd
 import secrets
 import sqlite3
-import json
-
-from schemas.input_schemas import (
-	MeterByArea,
-	SizingInputs,
-	SizingInputsWithShared)
-
-from pydantic import BaseModel
 from typing import Union
 
+from rec_sizing.custom_types.collective_milp_pool_types import BackpackCollectivePoolDict
+from schemas.input_schemas import (
+	SizingInputs,
+	SizingInputsWithShared
+)
 from schemas.output_schemas import (
 	MILPOutputs
-)
-from rec_sizing.custom_types.collective_milp_pool_types import (
-	BackpackCollectivePoolDict,
-	OutputsCollectivePoolDict
 )
 
 
@@ -30,74 +23,84 @@ def generate_order_id() -> str:
 
 
 def milp_inputs(user_params: Union[SizingInputs, SizingInputsWithShared],
-				all_data_df: pd.core.frame.DataFrame) -> BackpackCollectivePoolDict:
+				all_data_df: pd.core.frame.DataFrame,
+				self_cons_tariffs_series: pd.core.series.Series) -> BackpackCollectivePoolDict:
 	"""
 	Auxiliary function to build the inputs for post-delivery MILP functions
-	:param user_params:
+	:param user_params: hyperparameters passed by the user
 	:param all_data_df: a pandas DataFrame with 6 columns: datetime, e_c, e_g, meter_id, buy_tariff and sell_tariff
+	:param self_cons_tariffs_series: a pandas Series with the self consumption tariffs
 	:return: structure ready to run the desired MILP
 	"""
 	meter_ids = all_data_df['meter_id'].unique()
-	nr_time_steps = len(all_data_df['datetime'].unique())
+	all_data_df.reset_index(inplace=True)
 	sizing_params = user_params.sizing_params_by_meter[0]
 
-	all_data_df['datetime'] = pd.to_datetime(all_data_df['datetime'])
+	# calculate the number of days in the data provided
+	nr_meter_ids = len(meter_ids)
+	nr_data_points = len(all_data_df) / nr_meter_ids
+	assert nr_data_points % 96 == 0, 'horizon provided does not include full days'
+	nr_days = int(nr_data_points / 96)
 
-	print('all_data_df', all_data_df)
+	# if nr_representative_days is 0, no clustering should be performed, so define it as the same as the number of days
+	nr_clusters = nr_days if user_params.nr_representative_days == 0 else user_params.nr_representative_days
 
+	# build the meters structure separately
 	meters = {
 		meter_id: {
-			"l_buy": all_data_df.loc[all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['buy_tariff'].to_list(),
-			"l_sell": all_data_df.loc[all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['sell_tariff'].to_list(),
-			"l_cont": 0.0,  # Populate with actual data
-			"l_gic": sizing_params.l_gic,  # Populate with actual data
-			"l_bic": sizing_params.l_bic,  # Populate with actual data
-			"e_c": all_data_df.loc[all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['e_c'].to_list(),
-			"p_meter_max": 100,  # Populate with actual data
-			"p_gn_init": 0.0,  # Populate with actual data
-			'e_g_factor': all_data_df.loc[all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['e_g'].to_list(),
+			"l_buy": all_data_df.loc[
+				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['buy_tariff'].to_list(),
+			"l_sell": all_data_df.loc[
+				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['sell_tariff'].to_list(),
+			"l_cont": 0.0,  # todo: create separate structure with information per meter ID for CEVE and SEL
+			"l_gic": sizing_params.l_gic,
+			"l_bic": sizing_params.l_bic,
+			"e_c": all_data_df.loc[
+				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['e_c'].to_list(),
+			"p_meter_max": 100,
+			"p_gn_init": 0.0,
+			'e_g_factor': all_data_df.loc[
+				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['e_g'].to_list(),
 			"p_gn_min": sizing_params.minimum_new_pv_power,
-            "p_gn_max": sizing_params.maximum_new_pv_power,
-            "e_bn_init": 0.0,  # Populate with actual data
-            "e_bn_min": sizing_params.minimum_new_storage_capacity,
-            "e_bn_max": sizing_params.maximum_new_storage_capacity,
-            "soc_min": sizing_params.soc_min,
-            "eff_bc": sizing_params.eff_bc,
-            "eff_bd": sizing_params.eff_bd,
-            "soc_max": sizing_params.soc_max,
-            "deg_cost": sizing_params.deg_cost,
-            "btm_evs": None,  # Populate with actual data
-            "ewh": None  # Populate with actual data
+			"p_gn_max": sizing_params.maximum_new_pv_power,
+			"e_bn_init": 0.0,
+			"e_bn_min": sizing_params.minimum_new_storage_capacity,
+			"e_bn_max": sizing_params.maximum_new_storage_capacity,
+			"soc_min": sizing_params.soc_min,
+			"eff_bc": sizing_params.eff_bc,
+			"eff_bd": sizing_params.eff_bd,
+			"soc_max": sizing_params.soc_max,
+			"deg_cost": sizing_params.deg_cost,
+			"btm_evs": None,
+			"ewh": None
 		} for meter_id in meter_ids
 	}
-	with open('C:\\Users\\armando.moreno\\REC API\\rec_sizing_api\\helpers\\our_database.json', 'r') as f:
-		l_grid = json.load(f)["l_grid"]
 
+	# build the self-consumption tariffs structure separately
+	l_grid = self_cons_tariffs_series.to_list()
+
+	# build the final inputs structure
 	backpack = BackpackCollectivePoolDict(
-		nr_days=1/24,
-		nr_clusters=1,
+		nr_days=nr_days,
+		nr_clusters=nr_clusters,
 		l_grid=l_grid,
-		delta_t=0.25,  # Assuming 15-minute intervals, change as needed
+		delta_t=0.25,
 		storage_ratio=1.0,
-		strict_pos_coeffs=False,
-		total_share_coeffs=False,
+		strict_pos_coeffs=True,
+		total_share_coeffs=True,
 		meters=meters
 	)
-
-	print('backpack: \n', backpack)
 
 	return backpack
 
 
 def milp_return_structure(cursor: sqlite3.Cursor,
-						  order_id: str,
-						  lem_organization: str) \
+						  order_id: str) \
 		-> MILPOutputs:
 	"""
 	Prepare the structure to be returned with the MILP outputs, in accordance with the API specifications
 	:param cursor: cursor to the database
 	:param order_id: order id provided by the user
-	:param lem_organization: string indicating if LEM organization is "pool" or "bilateral"
 	:return: structure with MILP outputs in the API specified outputs' format
 	"""
 	# Initialize the return structure
@@ -127,49 +130,27 @@ def milp_return_structure(cursor: sqlite3.Cursor,
 	# INDIVIDUAL COSTS #################################################################################################
 	# Retrieve the individual costs calculated for the order ID
 	cursor.execute('''
-		SELECT * FROM Individual_Costs WHERE order_id = ?
+		SELECT * FROM Member_Costs WHERE order_id = ?
 	''', (order_id,))
-	individual_costs = cursor.fetchall()
+	member_costs = cursor.fetchall()
 
 	# Convert to dataframe for easy manipulation
-	individual_costs_df = pd.DataFrame(individual_costs)
-	individual_costs_df.columns = ['index', 'order_id', 'meter_id', 'individual_cost', 'individual_savings']
-	del individual_costs_df['index']
-	del individual_costs_df['order_id']
+	member_costs_df = pd.DataFrame(member_costs)
+	member_costs_df.columns = [
+		'index', 'order_id', 'meter_id', 'member_cost', 'member_cost_compensation', 'member_savings'
+	]
+	del member_costs_df['index']
+	del member_costs_df['order_id']
 
 	# Create final dictionary substructure
-	individual_investments_outputs_dict = {
-		'individual_costs': individual_costs_df.to_dict('records')
+	member_costs_outputs_dict = {
+		'member_costs': member_costs_df.to_dict('records')
 	}
 
 	# Update the return dictionary
-	milp_return.update(individual_investments_outputs_dict)
+	milp_return.update(member_costs_outputs_dict)
 
-
-	# METER COSTS #################################################################################################
-	# Retrieve the individual costs calculated for the order ID
-	cursor.execute('''
-		SELECT * FROM Meter_Costs WHERE order_id = ?
-	''', (order_id,))
-	meter_costs = cursor.fetchall()
-
-	# Convert to dataframe for easy manipulation
-	meter_costs_df = pd.DataFrame(meter_costs)
-	meter_costs_df.columns = ['index', 'order_id', 'meter_id', 'meter_cost', 'meter_savings']
-	del meter_costs_df['index']
-	del meter_costs_df['order_id']
-
-	# Create final dictionary substructure
-	meter_investments_outputs_dict = {
-		'meter_costs': meter_costs_df.to_dict('records')
-	}
-
-	# Update the return dictionary
-	milp_return.update(meter_investments_outputs_dict)
-
-
-
-	# Meter Investments Outputs #################################################################################################
+	# Meter Investments Outputs ########################################################################################
 	# Retrieve the individual costs calculated for the order ID
 	cursor.execute('''
 		SELECT * FROM Meter_Investment_Outputs WHERE order_id = ?
@@ -178,20 +159,20 @@ def milp_return_structure(cursor: sqlite3.Cursor,
 
 	# Convert to dataframe for easy manipulation
 	meter_investments_outputs_df = pd.DataFrame(meter_investments_outputs)
-	meter_investments_outputs_df.columns = ['index', 'order_id', 'meter_id', 'individual_cost', 'individual_savings', 'installed_pv',
-				'installed_storage', 'total_pv', 'total_storage', 'contracted_power', 'retailer_exchange_costs', 'sc_tariffs_costs']
+	meter_investments_outputs_df.columns = [
+		'index', 'order_id', 'meter_id', 'installation_cost', 'installation_cost_compensation', 'installation_savings',
+		'installed_pv', 'pv_investment_cost', 'installed_storage', 'storage_investment_cost', 'total_pv',
+		'total_storage', 'contracted_power', 'contracted_power_cost', 'retailer_exchange_costs', 'sc_tariffs_costs']
 	del meter_investments_outputs_df['index']
 	del meter_investments_outputs_df['order_id']
 
 	# Create final dictionary substructure
-	individual_costs_dict = {
+	meter_investments_outputs_dict = {
 		'meter_investments_outputs': meter_investments_outputs_df.to_dict('records')
 	}
 
 	# Update the return dictionary
-	milp_return.update(individual_costs_dict)
-
-
+	milp_return.update(meter_investments_outputs_dict)
 
 	# METER INPUTS #####################################################################################################
 	# Retrieve the meter inputs used in the order ID
@@ -225,14 +206,12 @@ def milp_return_structure(cursor: sqlite3.Cursor,
 
 	# Convert to dataframe for easy manipulation
 	meter_operation_outputs_df = pd.DataFrame(meter_operation_outputs)
-	print("DataFrame shape before setting columns:", meter_operation_outputs_df.shape)
 	meter_operation_outputs_df.columns = ['index', 'order_id', 'meter_id', 'datetime',
 							   'energy_surplus', 'energy_supplied', 'energy_purchased_lem', 'energy_sold_lem',
 								'net_load', 'bess_energy_charged',
 								'bess_energy_discharged', 'bess_energy_content']
 	del meter_operation_outputs_df['index']
 	del meter_operation_outputs_df['order_id']
-	print("Existing columns:", meter_operation_outputs_df.columns)
 
 	# Create final dictionary substructure
 	meter_operation_outputs_dict = {
@@ -241,9 +220,6 @@ def milp_return_structure(cursor: sqlite3.Cursor,
 
 	# Update the return dictionary
 	milp_return.update(meter_operation_outputs_dict)
-
-
-
 
 	# SELF CONSUMPTION TARIFFS #########################################################################################
 	# Retrieve the self-consumption tariffs used for the order ID

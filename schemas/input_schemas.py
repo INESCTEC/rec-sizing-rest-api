@@ -1,5 +1,5 @@
+from collections import defaultdict
 from datetime import datetime
-from itertools import islice
 from pydantic import (
 	BaseModel,
 	Field,
@@ -11,9 +11,17 @@ from typing import (
 	Set
 )
 
+from .enums import DatasetOrigin
+
 
 # GEOGRAPHICAL ENDPOINT ################################################################################################
 class MeterByArea(BaseModel):
+	dataset_origin: DatasetOrigin = Field(
+		description='Dataset origin from which the meter IDs\' data is to be retrieved from. '
+					'Two options are provided:\n - SEL (Smart Energy Lab)\n - CEVE (Cooperativa Elétrica Vale d\'Este',
+		default='CEVE',
+		examples=['CEVE']
+	)
 	rec_location: Coordinate or None = Field(
 		default={
 			'latitude': 0.0,
@@ -87,6 +95,7 @@ class SizingParameters(BaseModel):
 		examples=[10.0]
 	)
 
+
 class SizingParametersByMeter(SizingParameters):
 	meter_id: str = Field(
 		description='The string that unequivocally identifies the meter ID of the REC.',
@@ -102,6 +111,11 @@ class SizingInputs(BaseModel):
 	end_datetime: datetime = Field(
 		description='End date for the sizing horizon (included in it) in ISO 8601 format.',
 		examples=['2024-05-16 00:45:00']
+	)
+	dataset_origin: DatasetOrigin = Field(
+		description='Dataset origin from which the meter IDs\' data is to be retrieved from. '
+					'Two options are provided:\n - SEL (Smart Energy Lab)\n - CEVE (Cooperativa Elétrica Vale d\'Este',
+		examples=['SEL']
 	)
 	nr_representative_days: int = Field(
 		ge=0,
@@ -130,6 +144,10 @@ class SizingInputs(BaseModel):
 
 
 class Ownership(BaseModel):
+	shared_meter_id: str = Field(
+		description='The string that unequivocally identifies the meter ID that will be shared.',
+		examples=["Meter#3"]
+	)
 	meter_id: str = Field(
 		description='The string that unequivocally identifies the meter ID '
 					'that has ownership over the new shared meter ID.',
@@ -143,29 +161,43 @@ class Ownership(BaseModel):
 
 
 class SizingInputsWithShared(SizingInputs):
-	shared_meter_id: str = Field(
-		description='The string that unequivocally identifies the meter ID that will be shared.',
-		examples=["Meter#3"]
+	shared_meter_ids: Set[str] = Field(
+		description='An array of strings that unequivocally identifies the shared meters to be included in the REC. <br />'
+					'All registered assets (i.e., meter ids) belonging to the meters listed, will be considered when '
+					'running the algorithm.',
+		examples=[('Meter#3', 'Meter#4')]
 	)
 	ownerships: List[Ownership] = Field(
 		description='List of ownership percentages of meter ID responsible for the new shared meter. '
 					'Note: meter ID that don\'t have a percentage over the new meter are not required '
 					'to be defined on this list, but the sum of all ownerships must equal 100%.'
 	)
-	sizing_params_for_shared_meter: SizingParameters = Field(
+	sizing_params_for_shared_meter: List[SizingParametersByMeter] = Field(
 		description='List with parameterization for potentially new installed PV and/or storage capacities '
 					'behind a new shared meter ID within the REC.'
 	)
 
-	@field_validator('ownerships')
-	def ownerships_sum(cls, ownerships):
-		# Assert that the structure only has unique meter IDs
-		meter_ids = [ownership.meter_id for ownership in ownerships]
-		dup_ids = set([x for pos, x in enumerate(meter_ids) if x in islice(meter_ids, pos+1, None)])
-		assert not dup_ids, f'Found duplicated meter IDs: {list(dup_ids)}'
+	class OwnershipValidator(BaseModel):
+		ownerships: list[Ownership]
 
-		# Assert that the total ownership percentages over the shared meter total 100%
-		total_percentage = sum([ownership.percentage for ownership in ownerships])
-		assert total_percentage == 100.0, 'The sum of all ownerships must equal 100%.'
+		@field_validator('ownerships')
+		def ownerships_sum(cls, ownerships):
+			# Group ownerships by shared_meter_id
+			grouped_ownerships = defaultdict(list)
+			for ownership in ownerships:
+				grouped_ownerships[ownership.shared_meter_id].append(ownership)
 
-		return ownerships
+			# Validate each group
+			for shared_meter_id, group in grouped_ownerships.items():
+				meter_ids = [ownership.meter_id for ownership in group]
+
+				# Assert that the structure only has unique meter IDs within the same shared_meter_id
+				assert len(meter_ids) == len(
+					set(meter_ids)), f'Found duplicated meter IDs for shared_meter_id {shared_meter_id}: {meter_ids}'
+
+				# Assert that the total ownership percentages for each shared_meter_id equal 100%
+				total_percentage = sum(ownership.percentage for ownership in group)
+				assert total_percentage == 100.0, \
+					f'The sum of all ownerships for shared_meter_id {shared_meter_id} must equal 100%.'
+
+			return ownerships
