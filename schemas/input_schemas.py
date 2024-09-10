@@ -1,5 +1,8 @@
 from collections import defaultdict
-from datetime import datetime
+from datetime import (
+	datetime,
+	timezone
+)
 from pydantic import (
 	BaseModel,
 	Field,
@@ -106,11 +109,11 @@ class SizingParametersByMeter(SizingParameters):
 class SizingInputs(BaseModel):
 	start_datetime: datetime = Field(
 		description='Start date for the sizing horizon (included in it) in ISO 8601 format.',
-		examples=['2024-05-16 00:00:00']
+		examples=['2024-05-16T00:00:00Z']
 	)
 	end_datetime: datetime = Field(
 		description='End date for the sizing horizon (included in it) in ISO 8601 format.',
-		examples=['2024-05-16 00:45:00']
+		examples=['2024-05-16T00:45:00Z']
 	)
 	dataset_origin: DatasetOrigin = Field(
 		description='Dataset origin from which the meter IDs\' data is to be retrieved from. '
@@ -135,6 +138,14 @@ class SizingInputs(BaseModel):
 		description='List with parameterization for potentially new installed PV and/or storage capacities '
 					'behind the meter IDs of the REC.'
 	)
+
+	@field_validator('start_datetime')
+	def parse_start_datetime(cls, start_dt):
+		return start_dt.astimezone(timezone.utc)
+
+	@field_validator('end_datetime')
+	def parse_start_endtime(cls, end_dt):
+		return end_dt.astimezone(timezone.utc)
 
 	@field_validator('end_datetime')
 	def is_end_after_start(cls, end_dt, values):

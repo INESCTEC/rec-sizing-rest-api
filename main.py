@@ -5,6 +5,7 @@ from fastapi import (
 	FastAPI,
 	status
 )
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
 
@@ -46,6 +47,15 @@ app = FastAPI(
 	version='0.2.0'
 )
 
+# To avoid CORS problem, where the UI makes an initial OPTIONS request
+app.add_middleware(
+   CORSMiddleware,
+   allow_origins=["http://localhost:5173",],
+   allow_credentials=True,
+   allow_methods=["*"],
+   allow_headers=["*"],
+)
+
 # Set up logging
 set_stdout_logger()
 app.state.handler = set_logfile_handler('logs')
@@ -85,7 +95,7 @@ def search_meters_in_area(inputs_body: MeterByArea) -> MeterIDs:
 
 
 # LAUNCH SIZING ENDPOINTS ##############################################################################################
-@app.post('/sizing_with_shared_asset',
+@app.post('/sizing_with_shared_assets',
           description='Perform a sizing MILP where shared assets are considered, '
 					  'i.e., an additional meter ID is included within the REC where a new PV and/or storage '
 					  'asset can be potentially installed.',

@@ -155,24 +155,24 @@ def milp_return_structure(cursor: sqlite3.Cursor,
 	cursor.execute('''
 		SELECT * FROM Meter_Investment_Outputs WHERE order_id = ?
 	''', (order_id,))
-	meter_investments_outputs = cursor.fetchall()
+	meter_investment_outputs = cursor.fetchall()
 
 	# Convert to dataframe for easy manipulation
-	meter_investments_outputs_df = pd.DataFrame(meter_investments_outputs)
-	meter_investments_outputs_df.columns = [
+	meter_investment_outputs_df = pd.DataFrame(meter_investment_outputs)
+	meter_investment_outputs_df.columns = [
 		'index', 'order_id', 'meter_id', 'installation_cost', 'installation_cost_compensation', 'installation_savings',
 		'installed_pv', 'pv_investment_cost', 'installed_storage', 'storage_investment_cost', 'total_pv',
 		'total_storage', 'contracted_power', 'contracted_power_cost', 'retailer_exchange_costs', 'sc_tariffs_costs']
-	del meter_investments_outputs_df['index']
-	del meter_investments_outputs_df['order_id']
+	del meter_investment_outputs_df['index']
+	del meter_investment_outputs_df['order_id']
 
 	# Create final dictionary substructure
-	meter_investments_outputs_dict = {
-		'meter_investments_outputs': meter_investments_outputs_df.to_dict('records')
+	meter_investment_outputs_dict = {
+		'meter_investment_outputs': meter_investment_outputs_df.to_dict('records')
 	}
 
 	# Update the return dictionary
-	milp_return.update(meter_investments_outputs_dict)
+	milp_return.update(meter_investment_outputs_dict)
 
 	# METER INPUTS #####################################################################################################
 	# Retrieve the meter inputs used in the order ID

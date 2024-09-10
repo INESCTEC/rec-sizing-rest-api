@@ -4,6 +4,7 @@ import pandas as pd
 import pickle
 import pytz
 
+from datetime import timedelta
 from dotenv import dotenv_values
 from loguru import logger
 from tsg_client.controllers import TSGController
@@ -93,12 +94,17 @@ def fetch_ceve(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 	# unpack user_params
 	meter_ids = user_params.meter_ids  # unequivocal meter ID to search in the dataspace
 	start_datetime = user_params.start_datetime  # start datetime.datetime variable
-	start_datetime = pytz.utc.localize(start_datetime)
 	end_datetime = user_params.end_datetime  # end datetime.datetime variable
-	end_datetime = pytz.utc.localize(end_datetime)
+	if start_datetime.tzinfo is None:
+		start_datetime = pytz.utc.localize(start_datetime)
+	if end_datetime.tzinfo is None:
+		end_datetime = pytz.utc.localize(end_datetime)
 
 	# todo: function to truncate dates (end_datetime) to ensure that the horizon is a multiple of 24h;
-	# todo: if changes are made to start_datetime or end_datetime, log a warning
+	#  if changes are made to start_datetime or end_datetime, log a warning;
+	#  for now, since dates (without time information) are provided, times are processed as 00:00:00
+	#  (or 23:00:00 depending on the DST) so it is sufficient to subtract 15' from the end_datetime to ensure that
+	end_datetime -= timedelta(minutes=15)
 
 	# create a placeholder for the final dataframe to return
 	final_df = pd.DataFrame()
@@ -329,12 +335,17 @@ def fetch_sel(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 	# unpack user_params
 	meter_ids = user_params.meter_ids  # unequivocal meter ID to search in the dataspace
 	start_datetime = user_params.start_datetime  # start datetime.datetime variable
-	start_datetime = pytz.utc.localize(start_datetime)
 	end_datetime = user_params.end_datetime  # end datetime.datetime variable
-	end_datetime = pytz.utc.localize(end_datetime)
+	if start_datetime.tzinfo is None:
+		start_datetime = pytz.utc.localize(start_datetime)
+	if end_datetime.tzinfo is None:
+		end_datetime = pytz.utc.localize(end_datetime)
 
 	# todo: function to truncate dates (end_datetime) to ensure that the horizon is a multiple of 24h;
-	# todo: if changes are made to start_datetime or end_datetime, log a warning
+	#  if changes are made to start_datetime or end_datetime, log a warning;
+	#  for now, since dates (without time information) are provided, times are processed as 00:00:00
+	#  (or 23:00:00 depending on the DST) so it is sufficient to subtract 15' from the end_datetime to ensure that
+	end_datetime -= timedelta(minutes=15)
 
 	# create a placeholder for the final dataframe to return
 	final_df = pd.DataFrame()

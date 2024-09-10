@@ -125,19 +125,19 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 			''', (
 				id_order,
 				meter_id,
-				results_pp['installation_cost_compensations'][meter_id],
-				results_pp['installation_cost_compensations'][meter_id],
+				round(results_pp['installation_cost_compensations'][meter_id], 3),
+				round(results_pp['installation_cost_compensations'][meter_id], 3),
 				0,
-				results_pp['p_gn_new'][meter_id],
-				results_pp['PV_investments_cost'][meter_id],
-				results_pp['e_bn_new'][meter_id],
-				results_pp['batteries_investments_cost'][meter_id],
-				results_pp['p_gn_total'][meter_id],
-				results_pp['e_bn_total'][meter_id],
-				results_pp['p_cont'][meter_id],
-				results_pp['contractedpower_cost'][meter_id],
-				sum(results_pp['e_sup'][meter_id]),
-				sum(results_pp['e_slc_pool'][meter_id])
+				round(results_pp['p_gn_new'][meter_id], 3),
+				round(results_pp['PV_investments_cost'][meter_id], 3),
+				round(results_pp['e_bn_new'][meter_id], 3),
+				round(results_pp['batteries_investments_cost'][meter_id], 3),
+				round(results_pp['p_gn_total'][meter_id], 3),
+				round(results_pp['e_bn_total'][meter_id], 3),
+				round(results_pp['p_cont'][meter_id], 3),
+				round(results_pp['contractedpower_cost'][meter_id], 3),
+				round(sum(results_pp['e_sup'][meter_id]), 3),
+				round(sum(results_pp['e_slc_pool'][meter_id]), 3)
 			))
 
 		for idx, dt in enumerate(list_of_datetimes):
@@ -148,7 +148,7 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 			''', (
 				id_order,
 				dt,
-				results_pp['dual_prices'][idx]
+				round(results_pp['dual_prices'][idx], 3)
 			))
 
 			curs.execute('''
@@ -157,7 +157,7 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 			''', (
 				id_order,
 				dt,
-				inputs['l_grid'][idx]
+				round(inputs['l_grid'][idx], 3)
 			))
 
 			# todo: energy_generated é, na verdade,e_g_factor
@@ -170,10 +170,10 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 					id_order,
 					meter_id,
 					dt,
-					inputs['meters'][meter_id]['e_g_factor'][idx],
-					inputs['meters'][meter_id]['e_c'][idx],
-					inputs['meters'][meter_id]['l_buy'][idx],
-					inputs['meters'][meter_id]['l_sell'][idx],
+					round(inputs['meters'][meter_id]['e_g_factor'][idx], 3),
+					round(inputs['meters'][meter_id]['e_c'][idx], 3),
+					round(inputs['meters'][meter_id]['l_buy'][idx], 3),
+					round(inputs['meters'][meter_id]['l_sell'][idx], 3),
 				))
 
 				curs.execute('''
@@ -185,14 +185,14 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 					id_order,
 					meter_id,
 					dt,
-					results_pp['e_sur'][meter_id][idx],
-					results_pp['e_sup'][meter_id][idx],
-					results_pp['e_pur_pool'][meter_id][idx],
-					results_pp['e_sale_pool'][meter_id][idx],
-					results['e_cmet'][meter_id][idx],
-					results_pp['e_bc'][meter_id][idx],
-					results_pp['e_bd'][meter_id][idx],
-					results_pp['e_bat'][meter_id][idx]
+					round(results_pp['e_sur'][meter_id][idx], 3),
+					round(results_pp['e_sup'][meter_id][idx], 3),
+					round(results_pp['e_pur_pool'][meter_id][idx], 3),
+					round(results_pp['e_sale_pool'][meter_id][idx], 3),
+					round(results['e_cmet'][meter_id][idx], 3),
+					round(results_pp['e_bc'][meter_id][idx], 3),
+					round(results_pp['e_bd'][meter_id][idx], 3),
+					round(results_pp['e_bat'][meter_id][idx], 3)
 				))
 
 		conn.commit()
