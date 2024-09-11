@@ -1,15 +1,68 @@
 openapi: 3.1.0
 info:
   title: REC Sizing API
-  description: REST API for sizing a REC/CEC.
-  version: 0.1.0
+  description: REST API for sizing a REC.
+  version: 0.2.0
 paths:
-  /sizing:
+  /search_meters_in_area:
+    post:
+      tags:
+        - Search Meter IDs
+      summary: Search Meters In Area
+      description: Search which meters are located within the geographical circle formed by a point [lat, long] and a radius.
+      operationId: search_meters_in_area_search_meters_in_area_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeterByArea'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeterIDs'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /sizing_with_shared_assets:
     post:
       tags:
         - Calculate Sizing
-      summary: Compute Sizing
-      operationId: compute_sizing_sizing_post
+      summary: Compute Sizing With Shared Resources
+      description: Perform a sizing MILP where shared assets are considered, i.e., an additional meter ID is included within the REC where a new PV and/or storage asset can be potentially installed.
+      operationId: compute_sizing_with_shared_resources_sizing_with_shared_assets_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SizingInputsWithShared'
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /sizing_without_shared_assets:
+    post:
+      tags:
+        - Calculate Sizing
+      summary: Compute Sizing Without Shared Resources
+      description: Perform a sizing MILP where shared assets are not considered, i.e., new installed PV and/or storage capacities are limited to the existing meter IDs within the REC.
+      operationId: compute_sizing_without_shared_resources_sizing_without_shared_assets_post
       requestBody:
         content:
           application/json:
@@ -34,8 +87,8 @@ paths:
       tags:
         - Retrieve Sizing Results
       summary: Get Sizing Results
-      description: Endpoint for retrieving a request results', provided the order ID.
-      operationId: get_prices_get_sizing__order_id__get
+      description: Endpoint for retrieving the sizing results', provided the order ID.
+      operationId: get_sizing_results_get_sizing__order_id__get
       parameters:
         - name: order_id
           in: path
@@ -49,7 +102,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrderProcessed'
+                $ref: '#/components/schemas/MILPOutputs'
         '202':
           description: Order found but not yet processed.
           content:
@@ -63,17 +116,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/OrderNotFound'
         '412':
-          description: One or more member IDs not found.
+          description: One or more meter IDs not found.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MemberIDNotFound'
+                $ref: '#/components/schemas/MeterIDNotFound'
         '422':
-          description: Validation Error
+          description: One or more data point for one or more meter IDs not found.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                $ref: '#/components/schemas/TimeseriesDataNotFound'
 components:
   schemas:
     AcceptedResponse:
@@ -94,159 +147,6 @@ components:
         - message
         - order_id
       title: AcceptedResponse
-    AllocatedEnergy:
-      properties:
-        sending_cpe_id:
-          type: string
-          title: Sending Cpe Id
-          description: The string that identifies the CPE of the community that allocates the energy
-          examples:
-            - Prosumer#1
-        receiving_cpe_id:
-          type: string
-          title: Receiving Cpe Id
-          description: The string that identifies the CPE of the community that receives the energy allocated
-          examples:
-            - Prosumer#2
-        datetime:
-          type: string
-          format: date-time
-          title: Datetime
-          description: Datetime in ISO 8601 format.
-        value:
-          type: number
-          minimum: 0
-          title: Value
-          description: Energy allocated from sending_cpe_id to the receiving_cpe_id. In kWh.
-      type: object
-      required:
-        - sending_cpe_id
-        - receiving_cpe_id
-        - datetime
-        - value
-      title: AllocatedEnergy
-    BatteryCharge:
-      properties:
-        cpe_id:
-          type: string
-          title: Cpe Id
-          description: The string that identifies the CPE of the REC
-          examples:
-            - Prosumer#1
-        datetime:
-          type: string
-          format: date-time
-          title: Datetime
-          description: Datetime in ISO 8601 format.
-        value:
-          type: number
-          minimum: 0
-          title: Value
-          description: Positive if charging, Negative if discharging. In kWh.
-      type: object
-      required:
-        - cpe_id
-        - datetime
-        - value
-      title: BatteryCharge
-    BatteryFeaturesId:
-      type: string
-      enum:
-        - Luna2000
-        - Luna3000
-      title: BatteryFeaturesId
-    BilateralEnergy:
-      properties:
-        sending_cpe_id:
-          type: string
-          title: Sending Cpe Id
-          description: The string that identifies the CPE of the community that sells the energy
-          examples:
-            - Prosumer#1
-        receiving_cpe_id:
-          type: string
-          title: Receiving Cpe Id
-          description: The string that identifies the CPE of the community that buys the energy allocated
-          examples:
-            - Prosumer#2
-        datetime:
-          type: string
-          format: date-time
-          title: Datetime
-          description: Datetime in ISO 8601 format.
-        value:
-          type: number
-          minimum: 0
-          title: Value
-          description: Energy transacted between both prosumers, in kWh.
-      type: object
-      required:
-        - sending_cpe_id
-        - receiving_cpe_id
-        - datetime
-        - value
-      title: BilateralEnergy
-    BilateralPrice:
-      properties:
-        sending_cpe_id:
-          type: string
-          title: Sending Cpe Id
-          description: The string that identifies the CPE of the community that sells the energy
-          examples:
-            - Prosumer#1
-        receiving_cpe_id:
-          type: string
-          title: Receiving Cpe Id
-          description: The string that identifies the CPE of the community that buys the energy allocated
-          examples:
-            - Prosumer#2
-        datetime:
-          type: string
-          format: date-time
-          title: Datetime
-          description: Datetime in ISO 8601 format.
-        value:
-          type: number
-          minimum: 0
-          title: Value
-          description: Price of the energy transacted between both prosumers, in €/kWh.
-      type: object
-      required:
-        - sending_cpe_id
-        - receiving_cpe_id
-        - datetime
-        - value
-      title: BilateralPrice
-    BusinessModel:
-      type: string
-      enum:
-        - all market
-        - allocated
-      title: BusinessModel
-    ContractedPower:
-      properties:
-        cpe_id:
-          type: string
-          title: Cpe Id
-          description: The string that identifies the CPE of the REC
-          examples:
-            - Prosumer#1
-        datetime:
-          type: string
-          format: date-time
-          title: Datetime
-          description: Datetime in ISO 8601 format.
-        value:
-          type: number
-          minimum: 0
-          title: Value
-          description: Resulting maximum metered power flow, in kW.
-      type: object
-      required:
-        - cpe_id
-        - datetime
-        - value
-      title: ContractedPower
     Coordinate:
       properties:
         latitude:
@@ -264,165 +164,12 @@ components:
         - latitude
         - longitude
       title: Coordinate
-    CpeResults:
-      properties:
-        cpe_id:
-          type: string
-          title: Cpe Id
-          description: The string that identifies the CPE of the REC.
-          examples:
-            - Prosumer#1
-        installed_pv_power:
-          type: number
-          title: Installed Pv Power
-          description: The number of kWs of photovoltaic technology that should be installed in this CPE.
-        installed_battery_capacity:
-          type: number
-          title: Installed Battery Capacity
-          description: The number of kWhs of battery technology that should be installed in this CPE.
-        contracted_power:
-          type: number
-          title: Contracted Power
-          description: The resulting contracted power, in kW, for that period.
-        total_pv:
-          type: number
-          title: Total Pv
-          description: The previous installed PV power plus the recommended PV power to be installed.
-        total_battery:
-          type: number
-          title: Total Battery
-          description: The previous installed battery capacity plus the recommended battery capacity to be installed.
-      type: object
-      required:
-        - cpe_id
-        - installed_pv_power
-        - installed_battery_capacity
-        - contracted_power
-        - total_pv
-        - total_battery
-      title: CpeResults
-    EnergyBattery:
-      properties:
-        cpe_id:
-          type: string
-          title: Cpe Id
-          description: The string that identifies the CPE of the REC
-          examples:
-            - Prosumer#1
-        datetime:
-          type: string
-          format: date-time
-          title: Datetime
-          description: Datetime in ISO 8601 format.
-        value:
-          type: number
-          minimum: 0
-          title: Value
-          description: Energy in the battery, in kWh.
-      type: object
-      required:
-        - cpe_id
-        - datetime
-        - value
-      title: EnergyBattery
-    EnergyBought:
-      properties:
-        cpe_id:
-          type: string
-          title: Cpe Id
-          description: The string that identifies the CPE of the REC
-          examples:
-            - Prosumer#1
-        datetime:
-          type: string
-          format: date-time
-          title: Datetime
-          description: Datetime in ISO 8601 format.
-        value:
-          type: number
-          minimum: 0
-          title: Value
-          description: Total energy bought in the community, in kWh.
-      type: object
-      required:
-        - cpe_id
-        - datetime
-        - value
-      title: EnergyBought
-    EnergySold:
-      properties:
-        cpe_id:
-          type: string
-          title: Cpe Id
-          description: The string that identifies the CPE of the REC
-          examples:
-            - Prosumer#1
-        datetime:
-          type: string
-          format: date-time
-          title: Datetime
-          description: Datetime in ISO 8601 format.
-        value:
-          type: number
-          minimum: 0
-          title: Value
-          description: Total energy sold in the community, in kWh.
-      type: object
-      required:
-        - cpe_id
-        - datetime
-        - value
-      title: EnergySold
-    FinancialIndicator1:
-      properties:
-        value:
-          type: number
-          title: Value
-          description: To be decided.
-      type: object
-      required:
-        - value
-      title: FinancialIndicator1
-    FinancialIndicator2:
-      properties:
-        value:
-          type: number
-          title: Value
-          description: To be decided.
-      type: object
-      required:
-        - value
-      title: FinancialIndicator2
-    FinancialIndicator3:
-      properties:
-        value:
-          type: number
-          title: Value
-          description: To be decided.
-      type: object
-      required:
-        - value
-      title: FinancialIndicator3
-    FinancialIndicator4:
-      properties:
-        value:
-          type: number
-          title: Value
-          description: To be decided.
-      type: object
-      required:
-        - value
-      title: FinancialIndicator4
-    FinancialIndicator5:
-      properties:
-        value:
-          type: number
-          title: Value
-          description: To be decided.
-      type: object
-      required:
-        - value
-      title: FinancialIndicator5
+    DatasetOrigin:
+      type: string
+      enum:
+        - CEVE
+        - SEL
+      title: DatasetOrigin
     HTTPValidationError:
       properties:
         detail:
@@ -432,41 +179,305 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
-    MarketMechanism:
-      type: string
-      enum:
-        - Pool
-        - Bilateral
-      title: MarketMechanism
-    MemberCosts:
+    IndividualCosts:
       properties:
-        member_id:
+        meter_id:
           type: string
-          title: Member Id
-          description: The string that unequivocally identifies the member of the REC that has ownership over the meter making the offer.
+          title: Meter Id
+          description: The string that identifies the meter of the REC.
           examples:
-            - Member#1
-        costs:
+            - Meter#1
+        individual_cost:
           type: number
-          title: Costs
-          description: Total Cost for that member for the whole period considered.
-        savings:
+          title: Individual Cost
+          description: The total cost (operation + investment) for the optimization horizon calculated for the individual/member, without considering the cost for degradation of the BESS, in €. It includesthe costs of the shared assets
+        individual_savings:
           type: number
-          title: Savings
-          description: Total Savings for that member for the whole period considered, when compared with the individual self-consumption scenario.
+          title: Individual Savings
+          description: Total savings obtained for that meter ID, in €. <br />This represents the difference between the cost obtained for the individual/member after running the sizing algorithm, considering the possibility to install new PV and/or storage capacities behind-the-meter, and the respective operation cost for the same period, without that possibility, i.e., by simply operating in an optimal fashion the assets that are already installed in the meter.
       type: object
       required:
-        - member_id
-        - costs
-        - savings
-      title: MemberCosts
-    MemberIDNotFound:
+        - meter_id
+        - individual_cost
+        - individual_savings
+      title: IndividualCosts
+    InputsPerMeterAndDatetime:
+      properties:
+        meter_id:
+          type: string
+          title: Meter Id
+          description: A string that unequivocally identifies a meter of the REC.
+          examples:
+            - Meter#1
+        datetime:
+          type: string
+          format: date-time
+          title: Datetime
+          description: Datetime in ISO 8601 format.
+          examples:
+            - '2024-05-16T00:45:00Z'
+        energy_generated:
+          type: number
+          title: Energy Generated
+          description: PV panels’ generation considered by the algorithm, in kWh.
+          examples:
+            - 5
+        energy_consumed:
+          type: number
+          title: Energy Consumed
+          description: Meter's consumption considered by the algorithm, in kWh.
+          examples:
+            - 5
+        buy_tariff:
+          type: number
+          title: Buy Tariff
+          description: Purchase rate agreed with the retailer that was considered by the algorithm, in €/kWh.
+          examples:
+            - 5
+        sell_tariff:
+          type: number
+          title: Sell Tariff
+          description: Selling rate agreed with the retailer that was considered by the algorithm, in €/kWh.
+          examples:
+            - 5
+      type: object
+      required:
+        - meter_id
+        - datetime
+        - energy_generated
+        - energy_consumed
+        - buy_tariff
+        - sell_tariff
+      title: InputsPerMeterAndDatetime
+    InvestmentsPerMeter:
+      properties:
+        meter_id:
+          type: string
+          title: Meter Id
+          description: The string that identifies the meter of the REC.
+          examples:
+            - Meter#1
+        individual_cost:
+          type: number
+          title: Individual Cost
+          description: The total cost (operation + investment) for the optimization horizon calculated for the meter ID, without considering the cost for degradation of the BESS, in €.
+        individual_savings:
+          type: number
+          title: Individual Savings
+          description: Total savings obtained for that meter ID, in €. <br />This represents the difference between the cost obtained for the meter after running the sizing algorithm, considering the possibility to install new PV and/or storage capacities behind-the-meter, and the respective operation cost for the same period, without that possibility, i.e., by simply operating in an optimal fashion the assets that are already installed in the meter.
+        installed_pv_power:
+          type: number
+          title: Installed Pv Power
+          description: Newly installed PV power in the meter, in kW.
+        installed_storage_capacity:
+          type: number
+          title: Installed Storage Capacity
+          description: Newly installed storage capacity in the meter, in kWh.
+        contracted_power:
+          type: number
+          title: Contracted Power
+          description: 'Resulting Contracted Power for the meter, in kW. <br />Note: This value can be equal to or greater than the initial Contracted Power of the meter with the respective retailer. Any change to this value comes from newly installed capacities which are forecasted to require an additional power flow capacity at the meter.'
+        total_pv:
+          type: number
+          title: Total Pv
+          description: Total PV power in the meter, that equals the pre-installed capacity plus the newly installed capacity, in kW.
+        total_storage:
+          type: number
+          title: Total Storage
+          description: Total storage capacity in the meter, that equals the pre-installed capacity plus the newly installed capacity, in kWh.
+        retailer_exchange_costs:
+          type: number
+          title: Retailer Exchange Costs
+          description: The total cost of buying and selling energy from/to the retailer, in €.
+        sc_tariffs_costs:
+          type: number
+          title: Sc Tariffs Costs
+          description: The total grid access costs when self-consuming in the REC, in €.
+      type: object
+      required:
+        - meter_id
+        - individual_cost
+        - individual_savings
+        - installed_pv_power
+        - installed_storage_capacity
+        - contracted_power
+        - total_pv
+        - total_storage
+        - retailer_exchange_costs
+        - sc_tariffs_costs
+      title: InvestmentsPerMeter
+    LemPrice:
+      properties:
+        datetime:
+          type: string
+          format: date-time
+          title: Datetime
+          description: Datetime in ISO 8601 format.
+          examples:
+            - '2024-05-16T00:45:00Z'
+        value:
+          type: number
+          minimum: 0
+          title: Value
+          description: Local energy market price computed, in €/kWh.
+      type: object
+      required:
+        - datetime
+        - value
+      title: LemPrice
+    MILPOutputs:
+      properties:
+        order_id:
+          type: string
+          maxLength: 45
+          minLength: 45
+          title: Order Id
+          description: Order identifier for the request.
+          examples:
+            - iaMiULXA9BktPUu2b_PwTtycCSNe0_wYpPt9muwlEtgL49GDg-kggSktAjtu
+        objective_value:
+          type: number
+          title: Objective Value
+          description: Objective value found for the MILP solution.
+          examples:
+            - 5
+        milp_status:
+          allOf:
+            - $ref: '#/components/schemas/MILPStatus'
+          description: Indicates if the MILP was optimally solved (by returning "Optimal") or if an issue was raised and a successful solution was not achieved (by returning "Infeasible" or "Unbounded").
+        total_rec_cost:
+          type: number
+          title: Total Rec Cost
+          description: Total cost (operation + investment) for the whole community, in €.
+          examples:
+            - 5
+        individual_costs:
+          items:
+            $ref: '#/components/schemas/IndividualCosts'
+          type: array
+          title: Individual Costs
+          description: Individual total cost (operation + investment) per individual/member, in €.
+        meter_costs:
+          items:
+            $ref: '#/components/schemas/MeterCosts'
+          type: array
+          title: Meter Costs
+          description: Meter total cost (operation + investment) per meter ID, in €.
+        meter_investment_outputs:
+          items:
+            $ref: '#/components/schemas/InvestmentsPerMeter'
+          type: array
+          title: Meter Investment Outputs
+          description: List of meters with the respective non time variable results.
+        meter_operation_inputs:
+          items:
+            $ref: '#/components/schemas/InputsPerMeterAndDatetime'
+          type: array
+          title: Meter Operation Inputs
+          description: All time-varying inputs that were fed into the MILP, per meter ID.
+        meter_operation_outputs:
+          items:
+            $ref: '#/components/schemas/OutputsPerMeterAndDatetime'
+          type: array
+          title: Meter Operation Outputs
+          description: Time-varying outputs calculated in the MILP, per meter ID.
+        self_consumption_tariffs:
+          items:
+            $ref: '#/components/schemas/SelfConsumptionTariffsPerDatetime'
+          type: array
+          title: Self Consumption Tariffs
+          description: List with the self-consumption tariffs considered by the MILP.
+        lem_prices:
+          items:
+            $ref: '#/components/schemas/LemPrice'
+          type: array
+          title: Lem Prices
+          description: List with the local energy market prices computed for the requested horizon.
+      type: object
+      required:
+        - order_id
+        - objective_value
+        - milp_status
+        - total_rec_cost
+        - individual_costs
+        - meter_costs
+        - meter_investment_outputs
+        - meter_operation_inputs
+        - meter_operation_outputs
+        - self_consumption_tariffs
+        - lem_prices
+      title: MILPOutputs
+    MILPStatus:
+      type: string
+      enum:
+        - Optimal
+        - Unbounded
+        - Infeasible
+      title: MILPStatus
+    MeterByArea:
+      properties:
+        dataset_origin:
+          allOf:
+            - $ref: '#/components/schemas/DatasetOrigin'
+          description: |-
+            Dataset origin from which the meter IDs' data is to be retrieved from. Two options are provided:
+             - SEL (Smart Energy Lab)
+             - CEVE (Cooperativa Elétrica Vale d'Este
+          default: CEVE
+          examples:
+            - CEVE
+        rec_location:
+          anyOf:
+            - $ref: '#/components/schemas/Coordinate'
+            - prefixItems:
+                - type: number
+                - type: number
+              type: array
+              maxItems: 2
+              minItems: 2
+            - type: string
+          title: Rec Location
+          description: Latitude and Longitude of the REC.
+          default:
+            latitude: 0
+            longitude: 0
+        radius:
+          type: integer
+          minimum: 0
+          title: Radius
+          description: Radius, in km, that gives origin to a circle with the center in Latitude and Longitude. Meters within this circle will be retrieved from dataspace to form the REC.
+          default: 4
+      type: object
+      title: MeterByArea
+    MeterCosts:
+      properties:
+        meter_id:
+          type: string
+          title: Meter Id
+          description: The string that identifies the meter of the REC.
+          examples:
+            - Meter#1
+        meter_cost:
+          type: number
+          title: Meter Cost
+          description: The total cost (operation + investment) for the optimization horizon calculated for the meter ID, without considering the cost for degradation of the BESS, in €.
+        meter_savings:
+          type: number
+          title: Meter Savings
+          description: Total savings obtained for that meter ID, in €. <br />This represents the difference between the cost obtained for the meter after running the sizing algorithm, considering the possibility to install new PV and/or storage capacities behind-the-meter, and the respective operation cost for the same period, without that possibility, i.e., by simply operating in an optimal fashion the assets that are already installed in the meter.
+      type: object
+      required:
+        - meter_id
+        - meter_cost
+        - meter_savings
+      title: MeterCosts
+    MeterIDNotFound:
       properties:
         message:
           type: string
           title: Message
           examples:
-            - One or more member IDs not found on registry system.
+            - One or more meter IDs not found on registry system.
         order_id:
           type: string
           maxLength: 45
@@ -479,37 +490,22 @@ components:
       required:
         - message
         - order_id
-      title: MemberIDNotFound
-    NetConsumption:
+      title: MeterIDNotFound
+    MeterIDs:
       properties:
-        cpe_id:
-          type: string
-          title: Cpe Id
-          description: The string that identifies the CPE of the REC
+        meter_ids:
+          items:
+            type: string
+          type: array
+          title: Meter Ids
+          description: List with found meter ids within the area defined by the user.
           examples:
-            - Prosumer#1
-        datetime:
-          type: string
-          format: date-time
-          title: Datetime
-          description: Datetime in ISO 8601 format.
-        value:
-          type: number
-          minimum: 0
-          title: Value
-          description: Positive if consuming, Negative if producing. In kWh.
+            - - Meter#1
+              - Meter#2
       type: object
       required:
-        - cpe_id
-        - datetime
-        - value
-      title: NetConsumption
-    ObjectiveFunction:
-      type: string
-      enum:
-        - self-consumption
-        - arbitrage
-      title: ObjectiveFunction
+        - meter_ids
+      title: MeterIDs
     OrderNotFound:
       properties:
         message:
@@ -550,8 +546,378 @@ components:
         - message
         - order_id
       title: OrderNotProcessed
-    OrderProcessed:
+    OutputsPerMeterAndDatetime:
       properties:
+        meter_id:
+          type: string
+          title: Meter Id
+          description: A string that unequivocally identifies a meter of the REC.
+          examples:
+            - Meter#1
+        datetime:
+          type: string
+          format: date-time
+          title: Datetime
+          description: Datetime in ISO 8601 format.
+          examples:
+            - '2024-05-16T00:45:00Z'
+        energy_surplus:
+          type: number
+          title: Energy Surplus
+          description: Energy surplus that was sold to the retailer, in kWh.
+          examples:
+            - 5
+        energy_supplied:
+          type: number
+          title: Energy Supplied
+          description: Energy supplied that was bought from the retailer, in kWh.
+          examples:
+            - 5
+        energy_purchased_lem:
+          type: number
+          title: Energy Purchased Lem
+          description: Energy that was purchased in the local energy market (LEM), in kWh.
+          examples:
+            - 5
+        energy_sold_lem:
+          type: number
+          title: Energy Sold Lem
+          description: Energy that was sold in the local energy market (LEM), in kWh.
+          examples:
+            - 5
+        net_load:
+          type: number
+          title: Net Load
+          description: Expected net load registered in the meter, in kWh.
+          examples:
+            - 5
+        bess_energy_charged:
+          type: number
+          title: Bess Energy Charged
+          description: Energy charged in the meter's BESS, in kWh. <br />Sent as 0.0 if the meter does not have storage.
+          examples:
+            - 5
+        bess_energy_discharged:
+          type: number
+          title: Bess Energy Discharged
+          description: Energy discharged in the meter's BESS, in kWh. <br />Sent as 0.0 if the meter does not have storage.
+          examples:
+            - 5
+        bess_energy_content:
+          type: number
+          title: Bess Energy Content
+          description: Energy content of the meter's BESS, at the end of the time interval, in kWh. <br />Sent as 0.0 if the meter does not have storage.
+          examples:
+            - 5
+      type: object
+      required:
+        - meter_id
+        - datetime
+        - energy_surplus
+        - energy_supplied
+        - energy_purchased_lem
+        - energy_sold_lem
+        - net_load
+        - bess_energy_charged
+        - bess_energy_discharged
+        - bess_energy_content
+      title: OutputsPerMeterAndDatetime
+    Ownership:
+      properties:
+        shared_meter_id:
+          type: string
+          title: Shared Meter Id
+          description: The string that unequivocally identifies the meter ID that will be shared.
+          examples:
+            - Meter#3
+        meter_id:
+          type: string
+          title: Meter Id
+          description: The string that unequivocally identifies the meter ID that has ownership over the new shared meter ID.
+          examples:
+            - Meter#1
+        percentage:
+          type: number
+          maximum: 100
+          minimum: 0
+          title: Percentage
+          description: Ownership percentage that the meter ID owner will have over the new shared meter.
+      type: object
+      required:
+        - shared_meter_id
+        - meter_id
+        - percentage
+      title: Ownership
+    SelfConsumptionTariffsPerDatetime:
+      properties:
+        datetime:
+          type: string
+          format: date-time
+          title: Datetime
+          description: Datetime in ISO 8601 format.
+          examples:
+            - '2024-05-16T00:45:00Z'
+        self_consumption_tariff:
+          type: number
+          title: Self Consumption Tariff
+          description: Tariff applicable to self-consumed energy from the public grid, published by the national regulatory entity for energy services, in €/kWh.
+          examples:
+            - 5
+      type: object
+      required:
+        - datetime
+        - self_consumption_tariff
+      title: SelfConsumptionTariffsPerDatetime
+    SizingInputs:
+      properties:
+        start_datetime:
+          type: string
+          format: date-time
+          title: Start Datetime
+          description: Start date for the sizing horizon (included in it) in ISO 8601 format.
+          examples:
+            - '2024-05-16T00:00:00Z'
+        end_datetime:
+          type: string
+          format: date-time
+          title: End Datetime
+          description: End date for the sizing horizon (included in it) in ISO 8601 format.
+          examples:
+            - '2024-05-16T00:45:00Z'
+        dataset_origin:
+          allOf:
+            - $ref: '#/components/schemas/DatasetOrigin'
+          description: |-
+            Dataset origin from which the meter IDs' data is to be retrieved from. Two options are provided:
+             - SEL (Smart Energy Lab)
+             - CEVE (Cooperativa Elétrica Vale d'Este
+          examples:
+            - SEL
+        nr_representative_days:
+          type: integer
+          minimum: 0
+          title: Nr Representative Days
+          description: 'If the user defines a number > 0, a clustering of the input data is performed prior to the MILP run and sizing is performed over the number of representative days here defined. If the user defines this number as 0, no clustering is performed.Note: If the user defines a number of representative days greater than the number of days in the historical data sets, clustering is not performed.'
+        meter_ids:
+          items:
+            type: string
+          type: array
+          uniqueItems: true
+          title: Meter Ids
+          description: An array of strings that unequivocally identifies the meters to be included in the REC. <br />All registered assets (i.e., meter ids) belonging to the meters listed, will be considered when running the algorithm.
+          examples:
+            - - Meter#1
+              - Meter#2
+        sizing_params_by_meter:
+          items:
+            $ref: '#/components/schemas/SizingParametersByMeter'
+          type: array
+          title: Sizing Params By Meter
+          description: List with parameterization for potentially new installed PV and/or storage capacities behind the meter IDs of the REC.
+      type: object
+      required:
+        - start_datetime
+        - end_datetime
+        - dataset_origin
+        - nr_representative_days
+        - meter_ids
+        - sizing_params_by_meter
+      title: SizingInputs
+    SizingInputsWithShared:
+      properties:
+        start_datetime:
+          type: string
+          format: date-time
+          title: Start Datetime
+          description: Start date for the sizing horizon (included in it) in ISO 8601 format.
+          examples:
+            - '2024-05-16T00:00:00Z'
+        end_datetime:
+          type: string
+          format: date-time
+          title: End Datetime
+          description: End date for the sizing horizon (included in it) in ISO 8601 format.
+          examples:
+            - '2024-05-16T00:45:00Z'
+        dataset_origin:
+          allOf:
+            - $ref: '#/components/schemas/DatasetOrigin'
+          description: |-
+            Dataset origin from which the meter IDs' data is to be retrieved from. Two options are provided:
+             - SEL (Smart Energy Lab)
+             - CEVE (Cooperativa Elétrica Vale d'Este
+          examples:
+            - SEL
+        nr_representative_days:
+          type: integer
+          minimum: 0
+          title: Nr Representative Days
+          description: 'If the user defines a number > 0, a clustering of the input data is performed prior to the MILP run and sizing is performed over the number of representative days here defined. If the user defines this number as 0, no clustering is performed.Note: If the user defines a number of representative days greater than the number of days in the historical data sets, clustering is not performed.'
+        meter_ids:
+          items:
+            type: string
+          type: array
+          uniqueItems: true
+          title: Meter Ids
+          description: An array of strings that unequivocally identifies the meters to be included in the REC. <br />All registered assets (i.e., meter ids) belonging to the meters listed, will be considered when running the algorithm.
+          examples:
+            - - Meter#1
+              - Meter#2
+        sizing_params_by_meter:
+          items:
+            $ref: '#/components/schemas/SizingParametersByMeter'
+          type: array
+          title: Sizing Params By Meter
+          description: List with parameterization for potentially new installed PV and/or storage capacities behind the meter IDs of the REC.
+        shared_meter_ids:
+          items:
+            type: string
+          type: array
+          uniqueItems: true
+          title: Shared Meter Ids
+          description: An array of strings that unequivocally identifies the shared meters to be included in the REC. <br />All registered assets (i.e., meter ids) belonging to the meters listed, will be considered when running the algorithm.
+          examples:
+            - - Meter#3
+              - Meter#4
+        ownerships:
+          items:
+            $ref: '#/components/schemas/Ownership'
+          type: array
+          title: Ownerships
+          description: 'List of ownership percentages of meter ID responsible for the new shared meter. Note: meter ID that don''t have a percentage over the new meter are not required to be defined on this list, but the sum of all ownerships must equal 100%.'
+        sizing_params_for_shared_meter:
+          items:
+            $ref: '#/components/schemas/SizingParametersByMeter'
+          type: array
+          title: Sizing Params For Shared Meter
+          description: List with parameterization for potentially new installed PV and/or storage capacities behind a new shared meter ID within the REC.
+      type: object
+      required:
+        - start_datetime
+        - end_datetime
+        - dataset_origin
+        - nr_representative_days
+        - meter_ids
+        - sizing_params_by_meter
+        - shared_meter_ids
+        - ownerships
+        - sizing_params_for_shared_meter
+      title: SizingInputsWithShared
+    SizingParametersByMeter:
+      properties:
+        power_energy_ratio:
+          type: number
+          title: Power Energy Ratio
+          description: Power/energy [kW/kWh] ratio of the newly installed storage capacity. E.g., if the asset is to be able to charge/discharge in 1h, this ratio should be sent as 1.0, for 30 minutes this ratio should be 0.5 and for 2h this ratio should be 2.0.
+          examples:
+            - 1
+        minimum_new_pv_power:
+          type: number
+          title: Minimum New Pv Power
+          description: 'Minimum newly installed PV capacity, in kW. <br />Note: if no new PV capacity is to be installed set this value to 0.0.'
+          examples:
+            - 0
+        maximum_new_pv_power:
+          type: number
+          title: Maximum New Pv Power
+          description: 'Maximum newly installed PV capacity, in kW. <br />Note: if no new PV capacity is to be installed set this value to 0.0.'
+          examples:
+            - 10
+        minimum_new_storage_capacity:
+          type: number
+          title: Minimum New Storage Capacity
+          description: 'Minimum newly installed storage capacity, in kWh. <br />Note: if no new storage capacity is to be installed set this value to 0.0.'
+          examples:
+            - 0
+        maximum_new_storage_capacity:
+          type: number
+          title: Maximum New Storage Capacity
+          description: 'Maximum newly installed storage capacity, in kWh. <br />Note: if no new storage capacity is to be installed set this value to 0.0.'
+          examples:
+            - 10
+        l_gic:
+          type: number
+          title: L Gic
+          description: Cost of installing new PV, in €/kW. <br />
+          examples:
+            - 10
+        l_bic:
+          type: number
+          title: L Bic
+          description: Cost of installing new battery capacity, in €/kWh. <br />
+          examples:
+            - 10
+        soc_min:
+          type: number
+          title: Soc Min
+          description: Minimum state-of-charge of the battery to be installed, in %. <br />
+          examples:
+            - 10
+        soc_max:
+          type: number
+          title: Soc Max
+          description: Maximum state-of-charge of the battery to be installed, in %. <br />
+          examples:
+            - 10
+        eff_bc:
+          type: number
+          title: Eff Bc
+          description: Charging efficiency of the battery to be installed, in %. <br />
+          examples:
+            - 10
+        eff_bd:
+          type: number
+          title: Eff Bd
+          description: Discharging efficiency of the battery to be installed, in %. <br />
+          examples:
+            - 10
+        deg_cost:
+          type: number
+          title: Deg Cost
+          description: 'Degradation cost of the battery to be installed, in %. <br />Note: if no new storage capacity is to be installed set this value to 0.0.'
+          examples:
+            - 10
+        meter_id:
+          type: string
+          title: Meter Id
+          description: The string that unequivocally identifies the meter ID of the REC.
+          examples:
+            - Meter#1
+      type: object
+      required:
+        - power_energy_ratio
+        - minimum_new_pv_power
+        - maximum_new_pv_power
+        - minimum_new_storage_capacity
+        - maximum_new_storage_capacity
+        - l_gic
+        - l_bic
+        - soc_min
+        - soc_max
+        - eff_bc
+        - eff_bd
+        - deg_cost
+        - meter_id
+      title: SizingParametersByMeter
+    TimeseriesDataNotFound:
+      properties:
+        message:
+          type: string
+          title: Message
+          examples:
+            - One or more data point for one or more meter IDs not found on registry system.
+        missing_data_points:
+          additionalProperties:
+            items:
+              type: string
+            type: array
+          type: object
+          title: Missing Data Points
+          description: Lists of missing data points' datetime per meter ID.
+          examples:
+            - Meter#1:
+                - '2024-05-16T00:00:00Z'
+                - '2024-05-16T00:15:00Z'
         order_id:
           type: string
           maxLength: 45
@@ -560,376 +926,12 @@ components:
           description: Order identifier for the request.
           examples:
             - iaMiULXA9BktPUu2b_PwTtycCSNe0_wYpPt9muwlEtgL49GDg-kggSktAjtu
-        total_cost_rec:
-          allOf:
-            - $ref: '#/components/schemas/TotalCostRec'
-          description: Tocal Cost of the community for the whole period considered.
-        members_costs:
-          items:
-            $ref: '#/components/schemas/MemberCosts'
-          type: array
-          title: Members Costs
-          description: Members' costs and savings.
-        cpe_results:
-          items:
-            $ref: '#/components/schemas/CpeResults'
-          type: array
-          title: Cpe Results
-          description: General CPE results.
-        energy_battery:
-          items:
-            $ref: '#/components/schemas/EnergyBattery'
-          type: array
-          title: Energy Battery
-          description: Energy in the battery for every CPE and every time period.
-        battery_charge:
-          items:
-            $ref: '#/components/schemas/BatteryCharge'
-          type: array
-          title: Battery Charge
-          description: Energy charged and discharged in the battery for every CPE and every time period.
-        net_consumption:
-          items:
-            $ref: '#/components/schemas/NetConsumption'
-          type: array
-          title: Net Consumption
-          description: Net consumption for every CPE and every time period.
-        contracted_power:
-          items:
-            $ref: '#/components/schemas/ContractedPower'
-          type: array
-          title: Contracted Power
-          description: Contracted Power for every CPE.
-        pv_gen:
-          items:
-            $ref: '#/components/schemas/PVGen'
-          type: array
-          title: Pv Gen
-          description: Photovoltaic production for every CPE and every time period.
-        retailer_exchange:
-          items:
-            $ref: '#/components/schemas/RetailerExchange'
-          type: array
-          title: Retailer Exchange
-          description: Retailer exchanges for every CPE and every time period.
-        allocated_energy:
-          items:
-            $ref: '#/components/schemas/AllocatedEnergy'
-          type: array
-          title: Allocated Energy
-          description: Allocated energy between CPEs.
-        self_consumption:
-          items:
-            $ref: '#/components/schemas/SelfConsumption'
-          type: array
-          title: Self Consumption
-          description: Self-consumed for every CPE and every time period.
-        energy_bought:
-          items:
-            $ref: '#/components/schemas/EnergyBought'
-          type: array
-          title: Energy Bought
-          description: Energy bought in the community for every CPE and every time period.
-        energy_sold:
-          items:
-            $ref: '#/components/schemas/EnergySold'
-          type: array
-          title: Energy Sold
-          description: Energy sold in the community for every CPE and every time period.
-        pool_price:
-          items:
-            $ref: '#/components/schemas/PoolPrice'
-          type: array
-          title: Pool Price
-          description: Pool price in the community for every time period.
-        bilateral_price:
-          items:
-            $ref: '#/components/schemas/BilateralPrice'
-          type: array
-          title: Bilateral Price
-          description: Bilateral prices in the community for every time period.
-        bilateral_energy:
-          items:
-            $ref: '#/components/schemas/BilateralEnergy'
-          type: array
-          title: Bilateral Energy
-          description: Bilateral energy transactions in the community for every time period.
-        financial_indicator_1:
-          allOf:
-            - $ref: '#/components/schemas/FinancialIndicator1'
-          description: To be decided.
-        financial_indicator_2:
-          allOf:
-            - $ref: '#/components/schemas/FinancialIndicator2'
-          description: To be decided.
-        financial_indicator_3:
-          allOf:
-            - $ref: '#/components/schemas/FinancialIndicator3'
-          description: To be decided.
-        financial_indicator_4:
-          allOf:
-            - $ref: '#/components/schemas/FinancialIndicator4'
-          description: To be decided.
-        financial_indicator_5:
-          allOf:
-            - $ref: '#/components/schemas/FinancialIndicator5'
-          description: To be decided.
       type: object
       required:
+        - message
+        - missing_data_points
         - order_id
-        - total_cost_rec
-        - members_costs
-        - cpe_results
-        - energy_battery
-        - battery_charge
-        - net_consumption
-        - contracted_power
-        - pv_gen
-        - retailer_exchange
-        - allocated_energy
-        - self_consumption
-        - energy_bought
-        - energy_sold
-        - pool_price
-        - bilateral_price
-        - bilateral_energy
-        - financial_indicator_1
-        - financial_indicator_2
-        - financial_indicator_3
-        - financial_indicator_4
-        - financial_indicator_5
-      title: OrderProcessed
-    PVGen:
-      properties:
-        cpe_id:
-          type: string
-          title: Cpe Id
-          description: The string that identifies the CPE of the REC
-          examples:
-            - Prosumer#1
-        datetime:
-          type: string
-          format: date-time
-          title: Datetime
-          description: Datetime in ISO 8601 format.
-        value:
-          type: number
-          minimum: 0
-          title: Value
-          description: PV generation, in kWh.
-      type: object
-      required:
-        - cpe_id
-        - datetime
-        - value
-      title: PVGen
-    PoolPrice:
-      properties:
-        datetime:
-          type: string
-          format: date-time
-          title: Datetime
-          description: Datetime in ISO 8601 format.
-        value:
-          type: number
-          minimum: 0
-          title: Value
-          description: Pool price of the community, in €/kWh.
-      type: object
-      required:
-        - datetime
-        - value
-      title: PoolPrice
-    PriceMechanism:
-      type: string
-      enum:
-        - MMR
-        - SDR
-        - crossing value
-      title: PriceMechanism
-    PvFeaturesId:
-      type: string
-      enum:
-        - PV1000
-        - PV2000
-      title: PvFeaturesId
-    RetailerExchange:
-      properties:
-        cpe_id:
-          type: string
-          title: Cpe Id
-          description: The string that identifies the CPE of the REC
-          examples:
-            - Prosumer#1
-        datetime:
-          type: string
-          format: date-time
-          title: Datetime
-          description: Datetime in ISO 8601 format.
-        value:
-          type: number
-          minimum: 0
-          title: Value
-          description: Positive if buying from retailer, Negative if selling to retailer. In kWh.
-      type: object
-      required:
-        - cpe_id
-        - datetime
-        - value
-      title: RetailerExchange
-    SelfConsumption:
-      properties:
-        cpe_id:
-          type: string
-          title: Cpe Id
-          description: The string that identifies the CPE of the REC
-          examples:
-            - Prosumer#1
-        datetime:
-          type: string
-          format: date-time
-          title: Datetime
-          description: Datetime in ISO 8601 format.
-        value:
-          type: number
-          minimum: 0
-          title: Value
-          description: Energy self-consumed, in kWh.
-      type: object
-      required:
-        - cpe_id
-        - datetime
-        - value
-      title: SelfConsumption
-    SizingInputs:
-      properties:
-        start_datetime:
-          type: string
-          format: date-time
-          title: Start Datetime
-          description: Start datetime for the sizing horizon (included in it) in ISO 8601 format.
-        end_datetime:
-          type: string
-          format: date-time
-          title: End Datetime
-          description: End datetime for the sizing horizon (included in it) in ISO 8601 format.
-        business_model:
-          allOf:
-            - $ref: '#/components/schemas/BusinessModel'
-          description: 'There are two options: "all market" and "allocated". "allocated" means that installations with shared assets directly allocate their energy to their owners. On the other hand, "all market" means that the allocation of energy is not possible and all energy is shared and bought.'
-          default: all market
-        objective_function:
-          allOf:
-            - $ref: '#/components/schemas/ObjectiveFunction'
-          description: 'There are two options: "arbitrage" and "self consumption". "arbitrage" means the minimization of all community costs. "self consumption maximizes the self consumed energy in the community"'
-          default: arbitrage
-        shared_batteries:
-          type: boolean
-          title: Shared Batteries
-          description: True means that installations with shared batteries are possible.
-          default: false
-        shared_pv:
-          type: boolean
-          title: Shared Pv
-          description: True means that installations with shared PV systems are possible.
-          default: false
-        price_mechanism:
-          allOf:
-            - $ref: '#/components/schemas/PriceMechanism'
-          description: |
-            Three options:
-            MMR: It is the mid-market rate. Price is the average of the highest selling opportunity costs with the lowest buying opportunity costs among all installations negotiating at a certain time period.
-          default: crossing value
-        market_mechanism:
-          allOf:
-            - $ref: '#/components/schemas/MarketMechanism'
-          description: ''
-          default: Pool
-        sdr_compensation:
-          type: number
-          maximum: 1
-          minimum: 0
-          title: Sdr Compensation
-          description: Only considered when choosing "sdr" as the pricing mechanism. <br />Defines a compensation between 0.0 and 1.0 allowing the user to set an incentive for internal trades whenever the REC has a net surplus.
-          default: 0
-        mmr_divisor:
-          type: integer
-          exclusiveMinimum: 0
-          title: Mmr Divisor
-          description: Only considered when choosing "sdr" as the pricing mechanism. <br />Defines the divisor considered on the MMR expression. Values greater than 2 will favor buyers and values smaller than 2 will favor sellers.
-          default: 2
-        minimum_nr_members:
-          type: integer
-          title: Minimum Nr Members
-          description: Minimum number of members that the user wants in the community.
-          default: 2
-        community_location:
-          anyOf:
-            - $ref: '#/components/schemas/Coordinate'
-            - prefixItems:
-                - type: number
-                - type: number
-              type: array
-              maxItems: 2
-              minItems: 2
-            - type: string
-          title: Community Location
-          description: The coordinates of the community.
-          default:
-            latitude: 0
-            longitude: 0
-        radius:
-          type: integer
-          title: Radius
-          description: The radius around the community_location given that will define the maximum distance that the service should look for members at.
-          default: 4
-        member_ids:
-          items:
-            type: string
-          type: array
-          uniqueItems: true
-          title: Member Ids
-          description: An array of strings that unequivocally identifies the members to be included in the REC. <br />All registered assets (i.e., meter ids) belonging totally or partially to the members listed, will be considered in the following computations.
-          examples:
-            - - Member#1
-              - Member#2
-        type_of_community:
-          allOf:
-            - $ref: '#/components/schemas/TypeofCommunity'
-          description: 'Two options: "REC" or "CEC".'
-          default: CEC
-        battery_features_id:
-          allOf:
-            - $ref: '#/components/schemas/BatteryFeaturesId'
-          description: 'Battery ID that identifies the type of battery to be installed in the community. '
-          default: Luna2000
-        pv_features_id:
-          allOf:
-            - $ref: '#/components/schemas/PvFeaturesId'
-          description: PV ID that identifies the type of battery to be installed in the community.
-          default: PV1000
-      type: object
-      required:
-        - start_datetime
-        - end_datetime
-        - member_ids
-      title: SizingInputs
-    TotalCostRec:
-      properties:
-        value:
-          type: number
-          title: Value
-          description: Tocal Cost of the community for the whole period considered.
-      type: object
-      required:
-        - value
-      title: TotalCostRec
-    TypeofCommunity:
-      type: string
-      enum:
-        - REC
-        - CEC
-      title: TypeofCommunity
+      title: TimeseriesDataNotFound
     ValidationError:
       properties:
         loc:
