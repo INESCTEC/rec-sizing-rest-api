@@ -223,4 +223,8 @@ def get_sizing_results(order_id: str) -> MILPOutputs:
 
 if __name__ == '__main__':
 	import uvicorn
-	uvicorn.run(app, host="127.0.0.1", port=8001)
+	import os
+
+	host = os.getenv("SIZING_HOST", "127.0.0.1")
+	port = int(os.getenv("SIZING_PORT", 8001))
+	uvicorn.run(app, host=host, port=port)

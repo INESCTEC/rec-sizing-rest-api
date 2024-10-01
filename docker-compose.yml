@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8001:81"
+    volumes:
+      - orders_db:/app/files
+    env_file:
+      - .env
+    container_name: sizing_api
+
+volumes:
+  orders_db:
