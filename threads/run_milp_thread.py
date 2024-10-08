@@ -1,12 +1,14 @@
+import pandas as pd
 import sqlite3
 
 from loguru import logger
+from typing import Union
+
 from rec_sizing.optimization_functions import run_pre_collective_pool_milp
 from rec_sizing.post_processing_functions import run_post_processing
 from helpers.dataspace_interactions import fetch_dataspace
 from helpers.main_helpers import milp_inputs
 from schemas.input_schemas import (SizingInputs, SizingInputsWithShared)
-from typing import Union
 
 
 def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
@@ -40,6 +42,8 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 
 	# otherwise, proceed normally
 	else:
+		# flag if sizing should use representative days or not
+		is_clustered = bool(user_params.nr_representative_days)
 		# get the set of meter ids requested
 		meter_ids = set(data_df['meter_id'])
 		# prepare the inputs for the MILP
@@ -89,7 +93,6 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 			results['milp_status'],
 			round(results_pp['obj_value'], 2)
 		))
-		# todo: this
 		if hasattr(user_params, 'shared_meter_id'):
 			for meter_id in [i for i in meter_ids if i != user_params.shared_meter_id]:
 				curs.execute('''
@@ -105,7 +108,9 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 		else:
 			for meter_id in meter_ids:
 				curs.execute('''
-									INSERT INTO Member_Costs (order_id, meter_id, member_cost, member_cost_compensation, member_savings)
+									INSERT INTO Member_Costs (
+									order_id, meter_id, member_cost, member_cost_compensation, member_savings
+									)
 									VALUES (?, ?, ?, ?, ?)
 								''', (
 					id_order,
@@ -140,60 +145,132 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 				round(sum(results_pp['e_slc_pool'][meter_id]), 3)
 			))
 
-		for idx, dt in enumerate(list_of_datetimes):
-
-			curs.execute('''
-				INSERT INTO Lem_Prices (order_id, datetime, value)
-				VALUES (?, ?, ?)
-			''', (
-				id_order,
-				dt,
-				round(results_pp['dual_prices'][idx], 3)
-			))
-
-			curs.execute('''
-				INSERT INTO Pool_Self_Consumption_Tariffs (order_id, datetime, self_consumption_tariff)
-				VALUES (?, ?, ?)
-			''', (
-				id_order,
-				dt,
-				round(inputs['l_grid'][idx], 3)
-			))
-
-			# todo: energy_generated é, na verdade,e_g_factor
-			for meter_id in meter_ids:
+		if is_clustered:
+			nr_clusters = user_params.nr_representative_days
+			list_of_times = list(map(str,
+									 pd.date_range(start=pd.Timestamp('00:00:00'),
+												   end=pd.Timestamp('23:45:00'),
+												   freq='15T').time)
+								 ) * nr_clusters
+			list_of_cluster_nrs = [x//96 for x in list(range(len(list_of_times)))]
+			for idx, tempo in enumerate(list_of_times):
 				curs.execute('''
-					INSERT INTO Meter_Operation_Inputs (order_id, meter_id, datetime, energy_generated, 
-						energy_consumed, buy_tariff, sell_tariff)
-					VALUES (?, ?, ?, ?, ?, ?, ?)
+					INSERT INTO Clustered_Lem_Prices (order_id, time, cluster_nr, cluster_weight, value)
+					VALUES (?, ?, ?, ?, ?)
 				''', (
 					id_order,
-					meter_id,
-					dt,
-					round(inputs['meters'][meter_id]['e_g_factor'][idx], 3),
-					round(inputs['meters'][meter_id]['e_c'][idx], 3),
-					round(inputs['meters'][meter_id]['l_buy'][idx], 3),
-					round(inputs['meters'][meter_id]['l_sell'][idx], 3),
+					tempo,
+					list_of_cluster_nrs[idx],
+					int(inputs['w_clustering'][idx]),
+					round(results_pp['dual_prices'][idx], 3)
 				))
 
 				curs.execute('''
-					INSERT INTO Meter_Operation_Outputs (order_id, meter_id, datetime, energy_surplus, 
-						energy_supplied, energy_purchased_lem, energy_sold_lem, net_load, 
-						bess_energy_charged, bess_energy_discharged, bess_energy_content)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					INSERT INTO Clustered_Pool_Self_Consumption_Tariffs 
+					(order_id, time, cluster_nr, cluster_weight, self_consumption_tariff)
+					VALUES (?, ?, ?, ?, ?)
 				''', (
 					id_order,
-					meter_id,
-					dt,
-					round(results_pp['e_sur'][meter_id][idx], 3),
-					round(results_pp['e_sup'][meter_id][idx], 3),
-					round(results_pp['e_pur_pool'][meter_id][idx], 3),
-					round(results_pp['e_sale_pool'][meter_id][idx], 3),
-					round(results['e_cmet'][meter_id][idx], 3),
-					round(results_pp['e_bc'][meter_id][idx], 3),
-					round(results_pp['e_bd'][meter_id][idx], 3),
-					round(results_pp['e_bat'][meter_id][idx], 3)
+					tempo,
+					list_of_cluster_nrs[idx],
+					int(inputs['w_clustering'][idx]),
+					round(inputs['l_grid'][idx], 3)
 				))
+
+				# todo: energy_generated é, na verdade,e_g_factor
+				for meter_id in meter_ids:
+					curs.execute('''
+						INSERT INTO Clustered_Meter_Operation_Inputs 
+						(order_id, meter_id, time, cluster_nr, cluster_weight, energy_generated, energy_consumed, 
+						buy_tariff, sell_tariff)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+					''', (
+						id_order,
+						meter_id,
+						tempo,
+						list_of_cluster_nrs[idx],
+						int(inputs['w_clustering'][idx]),
+						round(inputs['meters'][meter_id]['e_g_factor'][idx], 3),
+						round(inputs['meters'][meter_id]['e_c'][idx], 3),
+						round(inputs['meters'][meter_id]['l_buy'][idx], 3),
+						round(inputs['meters'][meter_id]['l_sell'][idx], 3),
+					))
+
+					curs.execute('''
+						INSERT INTO Clustered_Meter_Operation_Outputs 
+						(order_id, meter_id, time, cluster_nr, cluster_weight, energy_surplus, energy_supplied, 
+						energy_purchased_lem, energy_sold_lem, net_load, bess_energy_charged, 
+						bess_energy_discharged, bess_energy_content)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					''', (
+						id_order,
+						meter_id,
+						tempo,
+						list_of_cluster_nrs[idx],
+						int(inputs['w_clustering'][idx]),
+						round(results_pp['e_sur'][meter_id][idx], 3),
+						round(results_pp['e_sup'][meter_id][idx], 3),
+						round(results_pp['e_pur_pool'][meter_id][idx], 3),
+						round(results_pp['e_sale_pool'][meter_id][idx], 3),
+						round(results['e_cmet'][meter_id][idx], 3),
+						round(results_pp['e_bc'][meter_id][idx], 3),
+						round(results_pp['e_bd'][meter_id][idx], 3),
+						round(results_pp['e_bat'][meter_id][idx], 3)
+					))
+		else:
+			for idx, dt in enumerate(list_of_datetimes):
+				curs.execute('''
+					INSERT INTO Lem_Prices (order_id, datetime, value)
+					VALUES (?, ?, ?)
+				''', (
+					id_order,
+					dt,
+					round(results_pp['dual_prices'][idx], 3)
+				))
+
+				curs.execute('''
+					INSERT INTO Pool_Self_Consumption_Tariffs (order_id, datetime, self_consumption_tariff)
+					VALUES (?, ?, ?)
+				''', (
+					id_order,
+					dt,
+					round(inputs['l_grid'][idx], 3)
+				))
+
+				# todo: energy_generated é, na verdade,e_g_factor
+				for meter_id in meter_ids:
+					curs.execute('''
+						INSERT INTO Meter_Operation_Inputs (order_id, meter_id, datetime, energy_generated, 
+							energy_consumed, buy_tariff, sell_tariff)
+						VALUES (?, ?, ?, ?, ?, ?, ?)
+					''', (
+						id_order,
+						meter_id,
+						dt,
+						round(inputs['meters'][meter_id]['e_g_factor'][idx], 3),
+						round(inputs['meters'][meter_id]['e_c'][idx], 3),
+						round(inputs['meters'][meter_id]['l_buy'][idx], 3),
+						round(inputs['meters'][meter_id]['l_sell'][idx], 3),
+					))
+
+					curs.execute('''
+						INSERT INTO Meter_Operation_Outputs (order_id, meter_id, datetime, energy_surplus, 
+							energy_supplied, energy_purchased_lem, energy_sold_lem, net_load, 
+							bess_energy_charged, bess_energy_discharged, bess_energy_content)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					''', (
+						id_order,
+						meter_id,
+						dt,
+						round(results_pp['e_sur'][meter_id][idx], 3),
+						round(results_pp['e_sup'][meter_id][idx], 3),
+						round(results_pp['e_pur_pool'][meter_id][idx], 3),
+						round(results_pp['e_sale_pool'][meter_id][idx], 3),
+						round(results['e_cmet'][meter_id][idx], 3),
+						round(results_pp['e_bc'][meter_id][idx], 3),
+						round(results_pp['e_bd'][meter_id][idx], 3),
+						round(results_pp['e_bat'][meter_id][idx], 3)
+					))
 
 		conn.commit()
 

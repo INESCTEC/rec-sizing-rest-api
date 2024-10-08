@@ -9,6 +9,7 @@ from schemas.input_schemas import (
 	SizingInputsWithShared
 )
 from schemas.output_schemas import (
+	ClusteredMILPOutputs,
 	MILPOutputs
 )
 
@@ -34,7 +35,7 @@ def milp_inputs(user_params: Union[SizingInputs, SizingInputsWithShared],
 	"""
 	meter_ids = all_data_df['meter_id'].unique()
 	all_data_df.reset_index(inplace=True)
-	sizing_params = user_params.sizing_params_by_meter[0]
+	sizing_params = user_params.sizing_params_by_meter
 
 	# calculate the number of days in the data provided
 	nr_meter_ids = len(meter_ids)
@@ -46,35 +47,36 @@ def milp_inputs(user_params: Union[SizingInputs, SizingInputsWithShared],
 	nr_clusters = nr_days if user_params.nr_representative_days == 0 else user_params.nr_representative_days
 
 	# build the meters structure separately
-	meters = {
-		meter_id: {
+	meters = {}
+	for meter_id in meter_ids:
+		meter_sizing_params = [x for x in sizing_params if x.meter_id == '0cb815fd3608'][0]
+		meters[meter_id] = {
 			"l_buy": all_data_df.loc[
 				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['buy_tariff'].to_list(),
 			"l_sell": all_data_df.loc[
 				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['sell_tariff'].to_list(),
 			"l_cont": 0.0,  # todo: create separate structure with information per meter ID for CEVE and SEL
-			"l_gic": sizing_params.l_gic,
-			"l_bic": sizing_params.l_bic,
+			"l_gic": meter_sizing_params.l_gic,
+			"l_bic": meter_sizing_params.l_bic,
 			"e_c": all_data_df.loc[
 				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['e_c'].to_list(),
 			"p_meter_max": 100,
 			"p_gn_init": 0.0,
 			'e_g_factor': all_data_df.loc[
 				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['e_g'].to_list(),
-			"p_gn_min": sizing_params.minimum_new_pv_power,
-			"p_gn_max": sizing_params.maximum_new_pv_power,
+			"p_gn_min": meter_sizing_params.minimum_new_pv_power,
+			"p_gn_max": meter_sizing_params.maximum_new_pv_power,
 			"e_bn_init": 0.0,
-			"e_bn_min": sizing_params.minimum_new_storage_capacity,
-			"e_bn_max": sizing_params.maximum_new_storage_capacity,
-			"soc_min": sizing_params.soc_min,
-			"eff_bc": sizing_params.eff_bc,
-			"eff_bd": sizing_params.eff_bd,
-			"soc_max": sizing_params.soc_max,
-			"deg_cost": sizing_params.deg_cost,
+			"e_bn_min": meter_sizing_params.minimum_new_storage_capacity,
+			"e_bn_max": meter_sizing_params.maximum_new_storage_capacity,
+			"soc_min": meter_sizing_params.soc_min,
+			"eff_bc": meter_sizing_params.eff_bc,
+			"eff_bd": meter_sizing_params.eff_bd,
+			"soc_max": meter_sizing_params.soc_max,
+			"deg_cost": meter_sizing_params.deg_cost,
 			"btm_evs": None,
 			"ewh": None
-		} for meter_id in meter_ids
-	}
+		}
 
 	# build the self-consumption tariffs structure separately
 	l_grid = self_cons_tariffs_series.to_list()
@@ -94,14 +96,9 @@ def milp_inputs(user_params: Union[SizingInputs, SizingInputsWithShared],
 	return backpack
 
 
-def milp_return_structure(cursor: sqlite3.Cursor,
-						  order_id: str) \
-		-> MILPOutputs:
+def __common_milp_return_structure(cursor, order_id):
 	"""
-	Prepare the structure to be returned with the MILP outputs, in accordance with the API specifications
-	:param cursor: cursor to the database
-	:param order_id: order id provided by the user
-	:return: structure with MILP outputs in the API specified outputs' format
+	Common output structure generation, for both clustered and non-clustered outputs.
 	"""
 	# Initialize the return structure
 	milp_return = {
@@ -111,8 +108,8 @@ def milp_return_structure(cursor: sqlite3.Cursor,
 	# GENERAL MILP OUTPUTS #############################################################################################
 	# Retrieve the general MILP outputs calculated for the order ID
 	cursor.execute('''
-		SELECT * FROM General_MILP_Outputs WHERE order_id = ?
-	''', (order_id,))
+			SELECT * FROM General_MILP_Outputs WHERE order_id = ?
+		''', (order_id,))
 	general_milp_outputs = cursor.fetchall()
 
 	# Convert to dataframe for easy manipulation
@@ -130,8 +127,8 @@ def milp_return_structure(cursor: sqlite3.Cursor,
 	# INDIVIDUAL COSTS #################################################################################################
 	# Retrieve the individual costs calculated for the order ID
 	cursor.execute('''
-		SELECT * FROM Member_Costs WHERE order_id = ?
-	''', (order_id,))
+			SELECT * FROM Member_Costs WHERE order_id = ?
+		''', (order_id,))
 	member_costs = cursor.fetchall()
 
 	# Convert to dataframe for easy manipulation
@@ -153,8 +150,8 @@ def milp_return_structure(cursor: sqlite3.Cursor,
 	# Meter Investments Outputs ########################################################################################
 	# Retrieve the individual costs calculated for the order ID
 	cursor.execute('''
-		SELECT * FROM Meter_Investment_Outputs WHERE order_id = ?
-	''', (order_id,))
+			SELECT * FROM Meter_Investment_Outputs WHERE order_id = ?
+		''', (order_id,))
 	meter_investment_outputs = cursor.fetchall()
 
 	# Convert to dataframe for easy manipulation
@@ -173,6 +170,21 @@ def milp_return_structure(cursor: sqlite3.Cursor,
 
 	# Update the return dictionary
 	milp_return.update(meter_investment_outputs_dict)
+
+	return milp_return
+
+
+def milp_return_structure(cursor: sqlite3.Cursor,
+						  order_id: str) \
+		-> MILPOutputs:
+	"""
+	Prepare the structure to be returned with the MILP outputs, in accordance with the API specifications
+	:param cursor: cursor to the database
+	:param order_id: order id provided by the user
+	:return: structure with MILP outputs in the API specified outputs' format
+	"""
+	# Get non time-varying output structure:
+	milp_return = __common_milp_return_structure(cursor, order_id)
 
 	# METER INPUTS #####################################################################################################
 	# Retrieve the meter inputs used in the order ID
@@ -251,6 +263,109 @@ def milp_return_structure(cursor: sqlite3.Cursor,
 	# Convert to dataframe for easy manipulation
 	lem_prices_df = pd.DataFrame(lem_prices)
 	lem_prices_df.columns = ['index', 'order_id', 'datetime', 'value']
+	del lem_prices_df['index']
+	del lem_prices_df['order_id']
+
+	lem_prices_dict = {
+		'lem_prices': lem_prices_df.to_dict('records')
+	}
+
+	# Update the return dictionary
+	milp_return.update(lem_prices_dict)
+
+	return milp_return
+
+
+def milp_return_clustered_structure(cursor: sqlite3.Cursor,
+						  order_id: str) \
+		-> ClusteredMILPOutputs:
+	"""
+	Prepare the structure to be returned with the (clustered) MILP outputs, in accordance with the API specifications
+	:param cursor: cursor to the database
+	:param order_id: order id provided by the user
+	:return: structure with (clustered) MILP outputs in the API specified outputs' format
+	"""
+	# Get non time-varying output structure:
+	milp_return = __common_milp_return_structure(cursor, order_id)
+
+	# CLUSTERED METER INPUTS ###########################################################################################
+	# Retrieve the (clustered) meter inputs used in the order ID
+	cursor.execute('''
+		SELECT * FROM Clustered_Meter_Operation_Inputs WHERE order_id = ?
+	''', (order_id,))
+	meter_inputs = cursor.fetchall()
+
+	# Convert to dataframe for easy manipulation
+	meter_inputs_df = pd.DataFrame(meter_inputs)
+	meter_inputs_df.columns = ['index', 'order_id', 'meter_id', 'time', 'cluster_nr', 'cluster_weight',
+							   'energy_generated', 'energy_consumed',
+							   'buy_tariff', 'sell_tariff']
+	del meter_inputs_df['index']
+	del meter_inputs_df['order_id']
+
+	# Create final dictionary substructure
+	meter_inputs_dict = {
+		'meter_operation_inputs': meter_inputs_df.to_dict('records')
+	}
+
+	# Update the return dictionary
+	milp_return.update(meter_inputs_dict)
+
+	# CLUSTERED METER OUTPUTS ##########################################################################################
+	# Retrieve the (clustered) meter outputs calculated for the order ID
+	cursor.execute('''
+		SELECT * FROM Clustered_Meter_Operation_Outputs WHERE order_id = ?
+	''', (order_id,))
+	meter_operation_outputs = cursor.fetchall()
+
+	# Convert to dataframe for easy manipulation
+	meter_operation_outputs_df = pd.DataFrame(meter_operation_outputs)
+	meter_operation_outputs_df.columns = ['index', 'order_id', 'meter_id', 'time', 'cluster_nr', 'cluster_weight',
+							   'energy_surplus', 'energy_supplied', 'energy_purchased_lem', 'energy_sold_lem',
+								'net_load', 'bess_energy_charged',
+								'bess_energy_discharged', 'bess_energy_content']
+	del meter_operation_outputs_df['index']
+	del meter_operation_outputs_df['order_id']
+
+	# Create final dictionary substructure
+	meter_operation_outputs_dict = {
+		'meter_operation_outputs': meter_operation_outputs_df.to_dict('records')
+	}
+
+	# Update the return dictionary
+	milp_return.update(meter_operation_outputs_dict)
+
+	# CLUSTERED SELF CONSUMPTION TARIFFS ###############################################################################
+	# Retrieve the (clustered) self-consumption tariffs used for the order ID
+	cursor.execute('''
+		SELECT * FROM Clustered_Pool_Self_Consumption_Tariffs WHERE order_id = ?
+	''', (order_id,))
+	self_consumption_tariffs = cursor.fetchall()
+
+	# Convert to dataframe for easy manipulation
+	self_consumption_tariff_df = pd.DataFrame(self_consumption_tariffs)
+	self_consumption_tariff_df.columns = ['index', 'order_id', 'time', 'cluster_nr', 'cluster_weight',
+										  'self_consumption_tariff']
+	del self_consumption_tariff_df['index']
+	del self_consumption_tariff_df['order_id']
+
+	self_consumption_tariff_dict = {
+		'self_consumption_tariffs': self_consumption_tariff_df.to_dict('records')
+	}
+
+	# Update the return dictionary
+	milp_return.update(self_consumption_tariff_dict)
+
+	# CLUSTERED LEM PRICES #############################################################################################
+	# Retrieve the (clustered) LEM prices calculated for the order ID
+	cursor.execute('''
+		SELECT * FROM Clustered_Lem_Prices WHERE order_id = ?
+	''', (order_id,))
+	lem_prices = cursor.fetchall()
+
+	# Convert to dataframe for easy manipulation
+	lem_prices_df = pd.DataFrame(lem_prices)
+	lem_prices_df.columns = ['index', 'order_id', 'time', 'cluster_nr', 'cluster_weight', 'value']
 	del lem_prices_df['index']
 	del lem_prices_df['order_id']
 

@@ -18,6 +18,7 @@ from helpers.log_setting import (
 )
 from helpers.main_helpers import (
 	generate_order_id,
+	milp_return_clustered_structure,
 	milp_return_structure
 )
 from schemas.input_schemas import (
@@ -27,6 +28,7 @@ from schemas.input_schemas import (
 )
 from schemas.output_schemas import (
 	AcceptedResponse,
+	ClusteredMILPOutputs,
 	OrderNotFound,
 	OrderNotProcessed,
 	MeterIDNotFound,
@@ -105,13 +107,14 @@ def compute_sizing_with_shared_resources(inputs_body: SizingInputsWithShared) ->
 	# generate an order ID for the user to fetch the results when ready
 	logger.info('Generating unique order ID.')
 	id_order = generate_order_id()
+	is_clustered = bool(inputs_body.nr_representative_days)
 
 	# update the database with the new order ID
 	logger.info('Creating registry in database for new order ID.')
 	app.state.cursor.execute('''
-				INSERT INTO Orders (order_id, processed, error, message)
-				VALUES (?, ?, ?, ?)
-			''', (id_order, False, '', ''))
+				INSERT INTO Orders (order_id, processed, error, message, clustered)
+				VALUES (?, ?, ?, ?, ?)
+			''', (id_order, False, '', '', is_clustered))
 	app.state.conn.commit()
 
 	# initiate a parallel process (thread) to start computing the prices
@@ -135,13 +138,14 @@ def compute_sizing_without_shared_resources(inputs_body: SizingInputs) -> Accept
 	# generate an order ID for the user to fetch the results when ready
 	logger.info('Generating unique order ID.')
 	id_order = generate_order_id()
+	is_clustered = bool(inputs_body.nr_representative_days)
 
 	# update the database with the new order ID
 	logger.info('Creating registry in database for new order ID.')
 	app.state.cursor.execute('''
-				INSERT INTO Orders (order_id, processed, error, message)
-				VALUES (?, ?, ?, ?)
-			''', (id_order, False, '', ''))
+				INSERT INTO Orders (order_id, processed, error, message, clustered)
+				VALUES (?, ?, ?, ?, ?)
+			''', (id_order, False, '', '', is_clustered))
 	app.state.conn.commit()
 
 	# initiate a parallel process (thread) to start computing the prices
@@ -155,7 +159,7 @@ def compute_sizing_without_shared_resources(inputs_body: SizingInputs) -> Accept
 							status_code=status.HTTP_202_ACCEPTED)
 
 
-# RETRIEVE SIZING ENDPOINT #############################################################################################
+# RETRIEVE SIZING ENDPOINTS ############################################################################################
 @app.get('/get_sizing/{order_id}',
          summary='Get Sizing Results',
          description='Endpoint for retrieving the sizing results\', provided the order ID.',
@@ -172,7 +176,7 @@ def get_sizing_results(order_id: str) -> MILPOutputs:
 	# Check if the order_id exists in the database
 	logger.info('Searching for order ID in local database.')
 	app.state.cursor.execute('''
-		SELECT * FROM Orders WHERE order_id = ?
+		SELECT * FROM Orders WHERE order_id = ? AND clustered = False
 	''', (order_id,))
 
 	# Fetch one row
@@ -204,6 +208,71 @@ def get_sizing_results(order_id: str) -> MILPOutputs:
 				# If the order resulted from a request to a "vanilla" endpoint,
 				# prepare the response message accordingly
 				milp_return = milp_return_structure(app.state.cursor, order_id)
+
+				return JSONResponse(content=milp_return,
+									status_code=status.HTTP_200_OK)
+
+		else:
+			# If the order is found but not processed, return 202 Accepted
+			return JSONResponse(content={'message': 'Order found but not yet processed.',
+										 'order_id': order_id},
+								status_code=status.HTTP_202_ACCEPTED)
+
+	else:
+		# If the order is not found, return 404 Not Found
+		return JSONResponse(content={'message': 'Order not found.',
+									 'order_id': order_id},
+							status_code=status.HTTP_404_NOT_FOUND)
+
+
+@app.get('/get_clustered_sizing/{order_id}',
+         summary='Get (Clustered) Sizing Results',
+         description='Endpoint for retrieving the *clustered* sizing results\', provided the order ID.',
+		 responses={
+			 202: {'model': OrderNotProcessed, 'description': 'Order found but not yet processed.'},
+			 404: {'model': OrderNotFound, 'description': 'Order not found.'},
+			 412: {'model': MeterIDNotFound, 'description': 'One or more meter IDs not found.'},
+			 422: {'model': TimeseriesDataNotFound,
+				   'description': 'One or more data point for one or more meter IDs not found.'}
+		 },
+         status_code=status.HTTP_200_OK,
+         tags=['Retrieve Sizing Results'])
+def get_clustered_sizing_results(order_id: str) -> ClusteredMILPOutputs:
+	# Check if the order_id exists in the database
+	logger.info('Searching for order ID in local database.')
+	app.state.cursor.execute('''
+		SELECT * FROM Orders WHERE order_id = ? AND clustered = True
+	''', (order_id,))
+
+	# Fetch one row
+	order = app.state.cursor.fetchone()
+
+	if order is not None:
+		logger.info('Order ID found. Checking if order has already been processed.')
+		processed = bool(order[1])
+		error = order[2]
+		message = order[3]
+
+		# Check if the order is processed
+		if processed:
+			logger.info('Order ID processed. Checking if process raised error.')
+			if error == '412':
+				# If the order is found but was met with missing meter ID(s)
+				return JSONResponse(content={'message': message,
+											 'order_id': order_id},
+									status_code=status.HTTP_412_PRECONDITION_FAILED)
+
+			elif error == '422':
+				# If the order is found but was met with missing data point(s)
+				return JSONResponse(content={'message': message,
+											 'order_id': order_id},
+									status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+			else:
+				logger.info('Order ID correctly processed. Fetching outputs.')
+				# If the order resulted from a request to a "vanilla" endpoint,
+				# prepare the response message accordingly
+				milp_return = milp_return_clustered_structure(app.state.cursor, order_id)
 
 				return JSONResponse(content=milp_return,
 									status_code=status.HTTP_200_OK)

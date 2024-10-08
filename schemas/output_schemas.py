@@ -1,4 +1,7 @@
-from datetime import datetime as dt
+from datetime import (
+	datetime as dt,
+	time as tempo
+)
 from pydantic import (
 	BaseModel,
 	Field
@@ -104,6 +107,7 @@ class IndividualCosts(BaseModel):
 					'meter.'
 	)
 
+
 class MeterCosts(BaseModel):
 	meter_id: str = Field(
 		description='The string that identifies the meter of the REC.',
@@ -121,6 +125,7 @@ class MeterCosts(BaseModel):
 					'i.e., by simply operating in an optimal fashion the assets that are already installed in the '
 					'meter.'
 	)
+
 
 class InvestmentsPerMeter(BaseModel):
 	meter_id: str = Field(
@@ -167,14 +172,34 @@ class InvestmentsPerMeter(BaseModel):
 		description='The total grid access costs when self-consuming in the REC, in €.'
 	)
 
-class InputsPerMeterAndDatetime(BaseModel):
-	meter_id: str = Field(
-		description='A string that unequivocally identifies a meter of the REC.',
-		examples=['Meter#1']
-	)
+
+class Datetime(BaseModel):
 	datetime: dt = Field(
 		description='Datetime in ISO 8601 format.',
 		examples=['2024-05-16T00:45:00Z']
+	)
+
+
+class ClusteredIdentifiers(BaseModel):
+	time: tempo = Field(
+		description='Time in ISO 8601 format.',
+		examples=['00:45:00']
+	)
+	cluster_nr: int = Field(
+		description='Unique identification of the cluster to which the data point belongs.',
+		examples=[1]
+	)
+	cluster_weight: int = Field(
+		description='Weight of the cluster and therefore of the datapoint. '
+					'Corresponds to the number of original raw data days that belong to the cluster.',
+		examples=[1]
+	)
+
+
+class CommonInputsPerMeterAndDatetime(BaseModel):
+	meter_id: str = Field(
+		description='A string that unequivocally identifies a meter of the REC.',
+		examples=['Meter#1']
 	)
 	energy_generated: float = Field(
 		description='PV panels’ generation considered by the algorithm, in kWh.',
@@ -194,14 +219,24 @@ class InputsPerMeterAndDatetime(BaseModel):
 	)
 
 
-class OutputsPerMeterAndDatetime(BaseModel):
+class InputsPerMeterAndDatetime(
+	Datetime,
+	CommonInputsPerMeterAndDatetime
+):
+	pass
+
+
+class ClusteredInputsPerMeterAndDatetime(
+	ClusteredIdentifiers,
+	CommonInputsPerMeterAndDatetime
+):
+	pass
+
+
+class CommonOutputsPerMeterAndDatetime(BaseModel):
 	meter_id: str = Field(
 		description='A string that unequivocally identifies a meter of the REC.',
 		examples=['Meter#1']
-	)
-	datetime: dt = Field(
-		description='Datetime in ISO 8601 format.',
-		examples=['2024-05-16T00:45:00Z']
 	)
 	energy_surplus: float = Field(
 		description='Energy surplus that was sold to the retailer, in kWh.',
@@ -240,11 +275,21 @@ class OutputsPerMeterAndDatetime(BaseModel):
 	)
 
 
-class SelfConsumptionTariffsPerDatetime(BaseModel):
-	datetime: dt = Field(
-		description='Datetime in ISO 8601 format.',
-		examples=['2024-05-16T00:45:00Z']
-	)
+class OutputsPerMeterAndDatetime(
+	Datetime,
+	CommonOutputsPerMeterAndDatetime
+):
+	pass
+
+
+class ClusteredOutputsPerMeterAndDatetime(
+	ClusteredIdentifiers,
+	CommonOutputsPerMeterAndDatetime
+):
+	pass
+
+
+class CommonSelfConsumptionTariffsPerDatetime(BaseModel):
 	self_consumption_tariff: float = Field(
 		description='Tariff applicable to self-consumed energy from the public grid, '
 					'published by the national regulatory entity for energy services, in €/kWh.',
@@ -252,18 +297,42 @@ class SelfConsumptionTariffsPerDatetime(BaseModel):
 	)
 
 
-class LemPrice(BaseModel):
-	datetime: dt = Field(
-		description='Datetime in ISO 8601 format.',
-		examples=['2024-05-16T00:45:00Z']
-	)
+class SelfConsumptionTariffsPerDatetime(
+	Datetime,
+	CommonSelfConsumptionTariffsPerDatetime
+):
+	pass
+
+
+class ClusteredSelfConsumptionTariffsPerDatetime(
+	ClusteredIdentifiers,
+	CommonSelfConsumptionTariffsPerDatetime
+):
+	pass
+
+
+class CommonLemPrice(BaseModel):
 	value: float = Field(
 		ge=0.0,
 		description='Local energy market price computed, in €/kWh.'
 	)
 
 
-class MILPOutputs(BaseModel):
+class LemPrice(
+	Datetime,
+	CommonLemPrice
+):
+	pass
+
+
+class ClusteredLemPrice(
+	ClusteredIdentifiers,
+	CommonLemPrice
+):
+	pass
+
+
+class NoDatetimeVaryingOutputs(BaseModel):
 	order_id: str = Field(
 		max_length=45,
 		min_length=45,
@@ -291,6 +360,9 @@ class MILPOutputs(BaseModel):
 	meter_investment_outputs: list[InvestmentsPerMeter] = Field(
 		description='List of meters with the respective non time variable results.'
 	)
+
+
+class MILPOutputs(NoDatetimeVaryingOutputs):
 	meter_operation_inputs: list[InputsPerMeterAndDatetime] = Field(
 		description='All time-varying inputs that were fed into the MILP, per meter ID.'
 	)
@@ -302,4 +374,19 @@ class MILPOutputs(BaseModel):
 	)
 	lem_prices: list[LemPrice] = Field(
 		description='List with the local energy market prices computed for the requested horizon.'
+	)
+
+
+class ClusteredMILPOutputs(NoDatetimeVaryingOutputs):
+	clustered_meter_operation_inputs: list[ClusteredInputsPerMeterAndDatetime] = Field(
+		description='All (clustered) time-varying inputs that were fed into the MILP, per meter ID.'
+	)
+	clustered_meter_operation_outputs: list[ClusteredOutputsPerMeterAndDatetime] = Field(
+		description='(Clustered) time-varying outputs calculated in the MILP, per meter ID.'
+	)
+	clustered_self_consumption_tariffs: list[ClusteredSelfConsumptionTariffsPerDatetime] = Field(
+		description='List with the (clustered) self-consumption tariffs considered by the MILP.'
+	)
+	clustered_lem_prices: list[ClusteredLemPrice] = Field(
+		description='List with the (clustered) local energy market prices computed for the requested horizon.'
 	)
