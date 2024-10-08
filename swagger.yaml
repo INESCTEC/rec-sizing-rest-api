@@ -127,6 +127,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TimeseriesDataNotFound'
+  /get_clustered_sizing/{order_id}:
+    get:
+      tags:
+        - Retrieve Sizing Results
+      summary: Get (Clustered) Sizing Results
+      description: Endpoint for retrieving the *clustered* sizing results', provided the order ID.
+      operationId: get_clustered_sizing_results_get_clustered_sizing__order_id__get
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Order Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusteredMILPOutputs'
+        '202':
+          description: Order found but not yet processed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderNotProcessed'
+        '404':
+          description: Order not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderNotFound'
+        '412':
+          description: One or more meter IDs not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeterIDNotFound'
+        '422':
+          description: One or more data point for one or more meter IDs not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeseriesDataNotFound'
 components:
   schemas:
     AcceptedResponse:
@@ -147,6 +192,306 @@ components:
         - message
         - order_id
       title: AcceptedResponse
+    ClusteredInputsPerMeterAndDatetime:
+      properties:
+        meter_id:
+          type: string
+          title: Meter Id
+          description: A string that unequivocally identifies a meter of the REC.
+          examples:
+            - Meter#1
+        energy_generated:
+          type: number
+          title: Energy Generated
+          description: PV panels’ generation considered by the algorithm, in kWh.
+          examples:
+            - 5
+        energy_consumed:
+          type: number
+          title: Energy Consumed
+          description: Meter's consumption considered by the algorithm, in kWh.
+          examples:
+            - 5
+        buy_tariff:
+          type: number
+          title: Buy Tariff
+          description: Purchase rate agreed with the retailer that was considered by the algorithm, in €/kWh.
+          examples:
+            - 5
+        sell_tariff:
+          type: number
+          title: Sell Tariff
+          description: Selling rate agreed with the retailer that was considered by the algorithm, in €/kWh.
+          examples:
+            - 5
+        time:
+          type: string
+          format: time
+          title: Time
+          description: Time in ISO 8601 format.
+          examples:
+            - '00:45:00'
+        cluster_nr:
+          type: integer
+          title: Cluster Nr
+          description: Unique identification of the cluster to which the data point belongs.
+          examples:
+            - 1
+        cluster_weight:
+          type: integer
+          title: Cluster Weight
+          description: Weight of the cluster and therefore of the datapoint. Corresponds to the number of original raw data days that belong to the cluster.
+          examples:
+            - 1
+      type: object
+      required:
+        - meter_id
+        - energy_generated
+        - energy_consumed
+        - buy_tariff
+        - sell_tariff
+        - time
+        - cluster_nr
+        - cluster_weight
+      title: ClusteredInputsPerMeterAndDatetime
+    ClusteredLemPrice:
+      properties:
+        value:
+          type: number
+          minimum: 0
+          title: Value
+          description: Local energy market price computed, in €/kWh.
+        time:
+          type: string
+          format: time
+          title: Time
+          description: Time in ISO 8601 format.
+          examples:
+            - '00:45:00'
+        cluster_nr:
+          type: integer
+          title: Cluster Nr
+          description: Unique identification of the cluster to which the data point belongs.
+          examples:
+            - 1
+        cluster_weight:
+          type: integer
+          title: Cluster Weight
+          description: Weight of the cluster and therefore of the datapoint. Corresponds to the number of original raw data days that belong to the cluster.
+          examples:
+            - 1
+      type: object
+      required:
+        - value
+        - time
+        - cluster_nr
+        - cluster_weight
+      title: ClusteredLemPrice
+    ClusteredMILPOutputs:
+      properties:
+        order_id:
+          type: string
+          maxLength: 45
+          minLength: 45
+          title: Order Id
+          description: Order identifier for the request.
+          examples:
+            - iaMiULXA9BktPUu2b_PwTtycCSNe0_wYpPt9muwlEtgL49GDg-kggSktAjtu
+        objective_value:
+          type: number
+          title: Objective Value
+          description: Objective value found for the MILP solution.
+          examples:
+            - 5
+        milp_status:
+          $ref: '#/components/schemas/MILPStatus'
+          description: Indicates if the MILP was optimally solved (by returning "Optimal") or if an issue was raised and a successful solution was not achieved (by returning "Infeasible" or "Unbounded").
+        total_rec_cost:
+          type: number
+          title: Total Rec Cost
+          description: Total cost (operation + investment) for the whole community, in €.
+          examples:
+            - 5
+        individual_costs:
+          items:
+            $ref: '#/components/schemas/IndividualCosts'
+          type: array
+          title: Individual Costs
+          description: Individual total cost (operation + investment) per individual/member, in €.
+        meter_costs:
+          items:
+            $ref: '#/components/schemas/MeterCosts'
+          type: array
+          title: Meter Costs
+          description: Meter total cost (operation + investment) per meter ID, in €.
+        meter_investment_outputs:
+          items:
+            $ref: '#/components/schemas/InvestmentsPerMeter'
+          type: array
+          title: Meter Investment Outputs
+          description: List of meters with the respective non time variable results.
+        clustered_meter_operation_inputs:
+          items:
+            $ref: '#/components/schemas/ClusteredInputsPerMeterAndDatetime'
+          type: array
+          title: Clustered Meter Operation Inputs
+          description: All (clustered) time-varying inputs that were fed into the MILP, per meter ID.
+        clustered_meter_operation_outputs:
+          items:
+            $ref: '#/components/schemas/ClusteredOutputsPerMeterAndDatetime'
+          type: array
+          title: Clustered Meter Operation Outputs
+          description: (Clustered) time-varying outputs calculated in the MILP, per meter ID.
+        clustered_self_consumption_tariffs:
+          items:
+            $ref: '#/components/schemas/ClusteredSelfConsumptionTariffsPerDatetime'
+          type: array
+          title: Clustered Self Consumption Tariffs
+          description: List with the (clustered) self-consumption tariffs considered by the MILP.
+        clustered_lem_prices:
+          items:
+            $ref: '#/components/schemas/ClusteredLemPrice'
+          type: array
+          title: Clustered Lem Prices
+          description: List with the (clustered) local energy market prices computed for the requested horizon.
+      type: object
+      required:
+        - order_id
+        - objective_value
+        - milp_status
+        - total_rec_cost
+        - individual_costs
+        - meter_costs
+        - meter_investment_outputs
+        - clustered_meter_operation_inputs
+        - clustered_meter_operation_outputs
+        - clustered_self_consumption_tariffs
+        - clustered_lem_prices
+      title: ClusteredMILPOutputs
+    ClusteredOutputsPerMeterAndDatetime:
+      properties:
+        meter_id:
+          type: string
+          title: Meter Id
+          description: A string that unequivocally identifies a meter of the REC.
+          examples:
+            - Meter#1
+        energy_surplus:
+          type: number
+          title: Energy Surplus
+          description: Energy surplus that was sold to the retailer, in kWh.
+          examples:
+            - 5
+        energy_supplied:
+          type: number
+          title: Energy Supplied
+          description: Energy supplied that was bought from the retailer, in kWh.
+          examples:
+            - 5
+        energy_purchased_lem:
+          type: number
+          title: Energy Purchased Lem
+          description: Energy that was purchased in the local energy market (LEM), in kWh.
+          examples:
+            - 5
+        energy_sold_lem:
+          type: number
+          title: Energy Sold Lem
+          description: Energy that was sold in the local energy market (LEM), in kWh.
+          examples:
+            - 5
+        net_load:
+          type: number
+          title: Net Load
+          description: Expected net load registered in the meter, in kWh.
+          examples:
+            - 5
+        bess_energy_charged:
+          type: number
+          title: Bess Energy Charged
+          description: Energy charged in the meter's BESS, in kWh. <br />Sent as 0.0 if the meter does not have storage.
+          examples:
+            - 5
+        bess_energy_discharged:
+          type: number
+          title: Bess Energy Discharged
+          description: Energy discharged in the meter's BESS, in kWh. <br />Sent as 0.0 if the meter does not have storage.
+          examples:
+            - 5
+        bess_energy_content:
+          type: number
+          title: Bess Energy Content
+          description: Energy content of the meter's BESS, at the end of the time interval, in kWh. <br />Sent as 0.0 if the meter does not have storage.
+          examples:
+            - 5
+        time:
+          type: string
+          format: time
+          title: Time
+          description: Time in ISO 8601 format.
+          examples:
+            - '00:45:00'
+        cluster_nr:
+          type: integer
+          title: Cluster Nr
+          description: Unique identification of the cluster to which the data point belongs.
+          examples:
+            - 1
+        cluster_weight:
+          type: integer
+          title: Cluster Weight
+          description: Weight of the cluster and therefore of the datapoint. Corresponds to the number of original raw data days that belong to the cluster.
+          examples:
+            - 1
+      type: object
+      required:
+        - meter_id
+        - energy_surplus
+        - energy_supplied
+        - energy_purchased_lem
+        - energy_sold_lem
+        - net_load
+        - bess_energy_charged
+        - bess_energy_discharged
+        - bess_energy_content
+        - time
+        - cluster_nr
+        - cluster_weight
+      title: ClusteredOutputsPerMeterAndDatetime
+    ClusteredSelfConsumptionTariffsPerDatetime:
+      properties:
+        self_consumption_tariff:
+          type: number
+          title: Self Consumption Tariff
+          description: Tariff applicable to self-consumed energy from the public grid, published by the national regulatory entity for energy services, in €/kWh.
+          examples:
+            - 5
+        time:
+          type: string
+          format: time
+          title: Time
+          description: Time in ISO 8601 format.
+          examples:
+            - '00:45:00'
+        cluster_nr:
+          type: integer
+          title: Cluster Nr
+          description: Unique identification of the cluster to which the data point belongs.
+          examples:
+            - 1
+        cluster_weight:
+          type: integer
+          title: Cluster Weight
+          description: Weight of the cluster and therefore of the datapoint. Corresponds to the number of original raw data days that belong to the cluster.
+          examples:
+            - 1
+      type: object
+      required:
+        - self_consumption_tariff
+        - time
+        - cluster_nr
+        - cluster_weight
+      title: ClusteredSelfConsumptionTariffsPerDatetime
     Coordinate:
       properties:
         latitude:
@@ -209,13 +554,6 @@ components:
           description: A string that unequivocally identifies a meter of the REC.
           examples:
             - Meter#1
-        datetime:
-          type: string
-          format: date-time
-          title: Datetime
-          description: Datetime in ISO 8601 format.
-          examples:
-            - '2024-05-16T00:45:00Z'
         energy_generated:
           type: number
           title: Energy Generated
@@ -240,14 +578,21 @@ components:
           description: Selling rate agreed with the retailer that was considered by the algorithm, in €/kWh.
           examples:
             - 5
+        datetime:
+          type: string
+          format: date-time
+          title: Datetime
+          description: Datetime in ISO 8601 format.
+          examples:
+            - '2024-05-16T00:45:00Z'
       type: object
       required:
         - meter_id
-        - datetime
         - energy_generated
         - energy_consumed
         - buy_tariff
         - sell_tariff
+        - datetime
       title: InputsPerMeterAndDatetime
     InvestmentsPerMeter:
       properties:
@@ -308,6 +653,11 @@ components:
       title: InvestmentsPerMeter
     LemPrice:
       properties:
+        value:
+          type: number
+          minimum: 0
+          title: Value
+          description: Local energy market price computed, in €/kWh.
         datetime:
           type: string
           format: date-time
@@ -315,15 +665,10 @@ components:
           description: Datetime in ISO 8601 format.
           examples:
             - '2024-05-16T00:45:00Z'
-        value:
-          type: number
-          minimum: 0
-          title: Value
-          description: Local energy market price computed, in €/kWh.
       type: object
       required:
-        - datetime
         - value
+        - datetime
       title: LemPrice
     MILPOutputs:
       properties:
@@ -342,8 +687,7 @@ components:
           examples:
             - 5
         milp_status:
-          allOf:
-            - $ref: '#/components/schemas/MILPStatus'
+          $ref: '#/components/schemas/MILPStatus'
           description: Indicates if the MILP was optimally solved (by returning "Optimal") or if an issue was raised and a successful solution was not achieved (by returning "Infeasible" or "Unbounded").
         total_rec_cost:
           type: number
@@ -417,8 +761,7 @@ components:
     MeterByArea:
       properties:
         dataset_origin:
-          allOf:
-            - $ref: '#/components/schemas/DatasetOrigin'
+          $ref: '#/components/schemas/DatasetOrigin'
           description: |-
             Dataset origin from which the meter IDs' data is to be retrieved from. Two options are provided:
              - SEL (Smart Energy Lab)
@@ -554,13 +897,6 @@ components:
           description: A string that unequivocally identifies a meter of the REC.
           examples:
             - Meter#1
-        datetime:
-          type: string
-          format: date-time
-          title: Datetime
-          description: Datetime in ISO 8601 format.
-          examples:
-            - '2024-05-16T00:45:00Z'
         energy_surplus:
           type: number
           title: Energy Surplus
@@ -609,10 +945,16 @@ components:
           description: Energy content of the meter's BESS, at the end of the time interval, in kWh. <br />Sent as 0.0 if the meter does not have storage.
           examples:
             - 5
+        datetime:
+          type: string
+          format: date-time
+          title: Datetime
+          description: Datetime in ISO 8601 format.
+          examples:
+            - '2024-05-16T00:45:00Z'
       type: object
       required:
         - meter_id
-        - datetime
         - energy_surplus
         - energy_supplied
         - energy_purchased_lem
@@ -621,6 +963,7 @@ components:
         - bess_energy_charged
         - bess_energy_discharged
         - bess_energy_content
+        - datetime
       title: OutputsPerMeterAndDatetime
     Ownership:
       properties:
@@ -650,6 +993,12 @@ components:
       title: Ownership
     SelfConsumptionTariffsPerDatetime:
       properties:
+        self_consumption_tariff:
+          type: number
+          title: Self Consumption Tariff
+          description: Tariff applicable to self-consumed energy from the public grid, published by the national regulatory entity for energy services, in €/kWh.
+          examples:
+            - 5
         datetime:
           type: string
           format: date-time
@@ -657,16 +1006,10 @@ components:
           description: Datetime in ISO 8601 format.
           examples:
             - '2024-05-16T00:45:00Z'
-        self_consumption_tariff:
-          type: number
-          title: Self Consumption Tariff
-          description: Tariff applicable to self-consumed energy from the public grid, published by the national regulatory entity for energy services, in €/kWh.
-          examples:
-            - 5
       type: object
       required:
-        - datetime
         - self_consumption_tariff
+        - datetime
       title: SelfConsumptionTariffsPerDatetime
     SizingInputs:
       properties:
@@ -685,8 +1028,7 @@ components:
           examples:
             - '2024-05-16T00:45:00Z'
         dataset_origin:
-          allOf:
-            - $ref: '#/components/schemas/DatasetOrigin'
+          $ref: '#/components/schemas/DatasetOrigin'
           description: |-
             Dataset origin from which the meter IDs' data is to be retrieved from. Two options are provided:
              - SEL (Smart Energy Lab)
@@ -740,8 +1082,7 @@ components:
           examples:
             - '2024-05-16T00:45:00Z'
         dataset_origin:
-          allOf:
-            - $ref: '#/components/schemas/DatasetOrigin'
+          $ref: '#/components/schemas/DatasetOrigin'
           description: |-
             Dataset origin from which the meter IDs' data is to be retrieved from. Two options are provided:
              - SEL (Smart Energy Lab)
