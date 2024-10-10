@@ -49,7 +49,7 @@ def milp_inputs(user_params: Union[SizingInputs, SizingInputsWithShared],
 	# build the meters structure separately
 	meters = {}
 	for meter_id in meter_ids:
-		meter_sizing_params = [x for x in sizing_params if x.meter_id == '0cb815fd3608'][0]
+		meter_sizing_params = [x for x in sizing_params if x.meter_id == meter_id][0]
 		meters[meter_id] = {
 			"l_buy": all_data_df.loc[
 				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['buy_tariff'].to_list(),
