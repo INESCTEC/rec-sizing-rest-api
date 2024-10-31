@@ -7,3 +7,7 @@ AGENT_ID=insert_agent_id_here
 
 # Metadata Broker info:
 METADATA_BROKER_URL=insert_metadata_broker_url_here
+
+# SEL TOKEN
+SEL_EMAIL=your_sel_email
+SEL_PASS=your_sel_password

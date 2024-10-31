@@ -46,7 +46,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 app = FastAPI(
 	title='REC Sizing API',
 	description='REST API for sizing a REC.',
-	version='0.2.0'
+	version='0.2.1'
 )
 
 # To avoid CORS problem, where the UI makes an initial OPTIONS request
