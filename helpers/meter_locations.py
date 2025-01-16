@@ -1,5 +1,5 @@
-# Hardcoded information about the end users from SEL and CEVE locations.
-# Note: these does not truly represent the locations of the households of SEL and CEVE members
+# Hardcoded information about the end users from SEL and IN-DATA locations.
+# Note: these does not truly represent the locations of the households of SEL and IN-DATA members
 # but random locations in Porto and surrounding areas
 #
 # DESCRIPTION
@@ -44,7 +44,7 @@ SEL_LOCATIONS = {
 	'fbe599917f4d': [41.245105, -8.605403]
 }
 
-CEVE_LOCATIONS = {
+INDATA_LOCATIONS = {
 	'0cb815fd4dec': [41.151163, -8.652882],
 	'0cb815fd4bcc': [41.217116, -8.560271],
 	'0cb815fc5350': [41.218278, -8.587393],

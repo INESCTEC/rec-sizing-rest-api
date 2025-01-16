@@ -1,4 +1,4 @@
-# Hardcoded information about the contracted powers available for SEL and CEVE meter IDs.
+# Hardcoded information about the contracted powers available for SEL and IN-DATA meter IDs.
 #
 # DESCRIPTION
 # {
@@ -42,7 +42,7 @@ SEL_CONTRACTED_POWER = {
 	'fbe599917f4d': 10.35
 }
 
-CEVE_CONTRACTED_POWERS = {
+INDATA_CONTRACTED_POWERS = {
 	'0cb815fd4dec': 10.35,
 	'0cb815fd4bcc': 10.35,
 	'0cb815fc5350': 6.90,

@@ -14,14 +14,14 @@ from tsg_client.controllers import TSGController
 from typing import Union
 
 from helpers.calculate_circle import haversine
-from helpers.ceve_shelly_info import CEVE_SHELLY_INFO
+from helpers.indata_shelly_info import INDATA_SHELLY_INFO
 from helpers.sel_shelly_info import SEL_SHELLY_INFO
 from helpers.meter_tariff_cycles import (
-	CEVE_TARIFF_CYCLES,
+	INDATA_TARIFF_CYCLES,
 	SEL_TARIFF_CYCLES
 )
 from helpers.meter_locations import (
-	CEVE_LOCATIONS,
+	INDATA_LOCATIONS,
 	SEL_LOCATIONS
 )
 from schemas.input_schemas import (
@@ -33,7 +33,7 @@ from schemas.output_schemas import MeterIDs
 
 def fetch_meters_location(meter_by_area: MeterByArea) -> MeterIDs:
 	"""
-	Function that evaluates which meter IDs from either CEVE or SEL, belong within a certain radius.
+	Function that evaluates which meter IDs from either IN-DATA or SEL, belong within a certain radius.
 	By providing a geographical point, characterized by latitude and longitude coordinates, and a radius in km,
 	this function returns to the user the meter IDs whose coordinates fall within the circle formed by those parameters.
 	:param meter_by_area: structure with the coordinates and radius provided by the user
@@ -45,10 +45,10 @@ def fetch_meters_location(meter_by_area: MeterByArea) -> MeterIDs:
 	# check which database to use
 	if meter_by_area.dataset_origin == 'SEL':
 		locations = SEL_LOCATIONS
-	elif meter_by_area.dataset_origin == 'CEVE':
-		locations = CEVE_LOCATIONS
+	elif meter_by_area.dataset_origin == 'IN-DATA':
+		locations = INDATA_LOCATIONS
 	else:
-		raise ValueError('unknown database passed; valid values: ["SEL", "CEVE"]')
+		raise ValueError('unknown database passed; valid values: ["SEL", "IN-DATA"]')
 
 	found_meters = [
 		meter_id for meter_id, location in locations.items()
@@ -73,18 +73,18 @@ def fetch_dataspace(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 		and a dictionary listing all missing datetimes per meter ID
 	"""
 	dataset_origin = user_params.dataset_origin
-	if dataset_origin == 'CEVE':
-		return fetch_ceve(user_params)
+	if dataset_origin == 'IN-DATA':
+		return fetch_indata(user_params)
 	elif dataset_origin == 'SEL':
 		return fetch_sel(user_params)
 	else:
 		raise ValueError('Unidentified dataset_origin provided.')
 
 
-def fetch_ceve(user_params: Union[SizingInputs, SizingInputsWithShared]) \
+def fetch_indata(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 		-> (pd.DataFrame, pd.Series, list[str], list[str], dict[str, list[str]]):
 	"""
-	Auxiliary function specific for fetching CEVE data.
+	Auxiliary function specific for fetching IN-DATA data.
 	:param user_params: class with all parameters passed by the user
 	:return: a pandas DataFrame with 6 columns: datetime, e_c, e_g, meter_id, buy_tariff and sell_tariff,
 		a pandas Series with the self-consumption tariffs applicable to the desired operation horizon,
@@ -186,7 +186,7 @@ def fetch_ceve(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 	for meter_id in meter_ids:
 		logger.info(f'- End User ID: {meter_id} ')
 		# validate meter_id provided
-		meter_phase = CEVE_SHELLY_INFO.get(meter_id)
+		meter_phase = INDATA_SHELLY_INFO.get(meter_id)
 		if meter_phase is None:
 			raise ValueError(f'{meter_id} is not a valid meter_id')
 		# initialize the meter's retrieved data
@@ -288,7 +288,7 @@ def fetch_ceve(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 			energy_df['meter_id'] = shelly_id
 			# add buy and sell tariffs' information
 			# - check the tariff type of the shelly_id (one of "simples", "bi-horárias", "tri-horárias")
-			tariff_type = CEVE_TARIFF_CYCLES[shelly_id]
+			tariff_type = INDATA_TARIFF_CYCLES[shelly_id]
 			# add buy and sell tariffs information for the meter_id
 			energy_df['buy_tariff'] = tariffs_df[tariff_type].loc[start_datetime:end_datetime]
 			# - obtain sell tariffs by considering 25% of the buy tariffs for the same period
@@ -422,7 +422,7 @@ def fetch_sel(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 	# instantiate outputs structure
 	dataset = []
 	for meter_id in meter_ids:
-		logger.info(f'- End User ID: : {meter_id} ')
+		logger.info(f'- End User ID: {meter_id} ')
 		# fetch the device type and sub sensor ID from hardcoded information
 		sensors = SEL_SHELLY_INFO.get(meter_id) if SEL_SHELLY_INFO.get(meter_id) is not None else []
 		# initialize the meter's retrieved data

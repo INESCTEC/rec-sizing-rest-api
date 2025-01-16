@@ -21,9 +21,9 @@ from .enums import DatasetOrigin
 class MeterByArea(BaseModel):
 	dataset_origin: DatasetOrigin = Field(
 		description='Dataset origin from which the meter IDs\' data is to be retrieved from. '
-					'Two options are provided:\n - SEL (Smart Energy Lab)\n - CEVE (Cooperativa Elétrica Vale d\'Este',
-		default='CEVE',
-		examples=['CEVE']
+					'Two options are provided:\n - SEL (Smart Energy Lab)\n - IN-DATA',
+		default='IN-DATA',
+		examples=['IN-DATA']
 	)
 	rec_location: Coordinate or None = Field(
 		default={
@@ -117,7 +117,7 @@ class SizingInputs(BaseModel):
 	)
 	dataset_origin: DatasetOrigin = Field(
 		description='Dataset origin from which the meter IDs\' data is to be retrieved from. '
-					'Two options are provided:\n - SEL (Smart Energy Lab)\n - CEVE (Cooperativa Elétrica Vale d\'Este',
+					'Two options are provided:\n - SEL (Smart Energy Lab)\n - IN-DATA',
 		examples=['SEL']
 	)
 	nr_representative_days: int = Field(
