@@ -1,4 +1,4 @@
-# Hardcoded information about the contracted powers available for SEL and IN-DATA meter IDs.
+# Hardcoded information about the contracted powers available for SEL and INDATA meter IDs.
 #
 # DESCRIPTION
 # {

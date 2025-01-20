@@ -1,5 +1,5 @@
-# Hardcoded information about the end users from SEL and IN-DATA locations.
-# Note: these does not truly represent the locations of the households of SEL and IN-DATA members
+# Hardcoded information about the end users from SEL and INDATA locations.
+# Note: these does not truly represent the locations of the households of SEL and INDATA members
 # but random locations in Porto and surrounding areas
 #
 # DESCRIPTION

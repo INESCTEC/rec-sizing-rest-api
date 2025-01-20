@@ -33,7 +33,7 @@ from schemas.output_schemas import MeterIDs
 
 def fetch_meters_location(meter_by_area: MeterByArea) -> MeterIDs:
 	"""
-	Function that evaluates which meter IDs from either IN-DATA or SEL, belong within a certain radius.
+	Function that evaluates which meter IDs from either INDATA or SEL, belong within a certain radius.
 	By providing a geographical point, characterized by latitude and longitude coordinates, and a radius in km,
 	this function returns to the user the meter IDs whose coordinates fall within the circle formed by those parameters.
 	:param meter_by_area: structure with the coordinates and radius provided by the user
@@ -45,10 +45,10 @@ def fetch_meters_location(meter_by_area: MeterByArea) -> MeterIDs:
 	# check which database to use
 	if meter_by_area.dataset_origin == 'SEL':
 		locations = SEL_LOCATIONS
-	elif meter_by_area.dataset_origin == 'IN-DATA':
+	elif meter_by_area.dataset_origin == 'INDATA':
 		locations = INDATA_LOCATIONS
 	else:
-		raise ValueError('unknown database passed; valid values: ["SEL", "IN-DATA"]')
+		raise ValueError('unknown database passed; valid values: ["SEL", "INDATA"]')
 
 	found_meters = [
 		meter_id for meter_id, location in locations.items()
@@ -73,7 +73,7 @@ def fetch_dataspace(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 		and a dictionary listing all missing datetimes per meter ID
 	"""
 	dataset_origin = user_params.dataset_origin
-	if dataset_origin == 'IN-DATA':
+	if dataset_origin == 'INDATA':
 		return fetch_indata(user_params)
 	elif dataset_origin == 'SEL':
 		return fetch_sel(user_params)
@@ -84,7 +84,7 @@ def fetch_dataspace(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 def fetch_indata(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 		-> (pd.DataFrame, pd.Series, list[str], list[str], dict[str, list[str]]):
 	"""
-	Auxiliary function specific for fetching IN-DATA data.
+	Auxiliary function specific for fetching INDATA data.
 	:param user_params: class with all parameters passed by the user
 	:return: a pandas DataFrame with 6 columns: datetime, e_c, e_g, meter_id, buy_tariff and sell_tariff,
 		a pandas Series with the self-consumption tariffs applicable to the desired operation horizon,

@@ -2,7 +2,7 @@ from enum import Enum
 
 
 class DatasetOrigin(str, Enum):
-	indata = 'IN-DATA'
+	indata = 'INDATA'
 	sel = 'SEL'
 
 

@@ -55,7 +55,7 @@ def milp_inputs(user_params: Union[SizingInputs, SizingInputsWithShared],
 				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['buy_tariff'].to_list(),
 			"l_sell": all_data_df.loc[
 				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['sell_tariff'].to_list(),
-			"l_cont": 0.0,  # todo: create separate structure with information per meter ID for IN-DATA and SEL
+			"l_cont": 0.0,  # todo: create separate structure with information per meter ID for INDATA and SEL
 			"l_gic": meter_sizing_params.l_gic,
 			"l_bic": meter_sizing_params.l_bic,
 			"e_c": all_data_df.loc[
