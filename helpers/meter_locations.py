@@ -66,3 +66,9 @@ INDATA_LOCATIONS = {
 	'34987a675060': [41.154415, -8.678877],
 	'0cb815fd49c4': [41.245105, -8.605403]
 }
+
+# Location coordinates near the SEL CPE for shared meters
+SEL_LOCATION_INFO = [41.158005, -8.663735]
+
+# Location coordinates near the INDATA CPE for shared meters
+INDATA_LOCATION_INFO = [41.151163, -8.652882]

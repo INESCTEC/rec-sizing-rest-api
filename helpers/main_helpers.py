@@ -3,6 +3,8 @@ import secrets
 import sqlite3
 from typing import Union
 
+from helpers.indata_shelly_info import INDATA_PV_INFO
+from helpers.sel_shelly_info import SEL_PV_INFO
 from rec_sizing.custom_types.collective_milp_pool_types import BackpackCollectivePoolDict
 from schemas.input_schemas import (
 	SizingInputs,
@@ -34,8 +36,13 @@ def milp_inputs(user_params: Union[SizingInputs, SizingInputsWithShared],
 	:return: structure ready to run the desired MILP
 	"""
 	meter_ids = all_data_df['meter_id'].unique()
+	all_data_df.index.name = 'datetime'
 	all_data_df.reset_index(inplace=True)
 	sizing_params = user_params.sizing_params_by_meter
+	try:
+		sizing_params.extend(user_params.sizing_params_for_shared_meter)
+	except AttributeError:
+		pass
 
 	# calculate the number of days in the data provided
 	nr_meter_ids = len(meter_ids)
@@ -46,6 +53,10 @@ def milp_inputs(user_params: Union[SizingInputs, SizingInputsWithShared],
 	# if nr_representative_days is 0, no clustering should be performed, so define it as the same as the number of days
 	nr_clusters = nr_days if user_params.nr_representative_days == 0 else user_params.nr_representative_days
 
+	# check the originally installed capacities
+	dataset_origin = user_params.dataset_origin
+	pv_info = SEL_PV_INFO if dataset_origin == 'SEL' else INDATA_PV_INFO
+
 	# build the meters structure separately
 	meters = {}
 	for meter_id in meter_ids:
@@ -55,13 +66,13 @@ def milp_inputs(user_params: Union[SizingInputs, SizingInputsWithShared],
 				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['buy_tariff'].to_list(),
 			"l_sell": all_data_df.loc[
 				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['sell_tariff'].to_list(),
-			"l_cont": 0.0,  # todo: create separate structure with information per meter ID for INDATA and SEL
+			"l_cont": 0.0462,  # todo: create separate structure with information per meter ID for INDATA and SEL
 			"l_gic": meter_sizing_params.l_gic,
 			"l_bic": meter_sizing_params.l_bic,
 			"e_c": all_data_df.loc[
 				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['e_c'].to_list(),
 			"p_meter_max": 100,
-			"p_gn_init": 0.0,
+			"p_gn_init": pv_info.get(meter_id),
 			'e_g_factor': all_data_df.loc[
 				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['e_g'].to_list(),
 			"p_gn_min": meter_sizing_params.minimum_new_pv_power,
@@ -73,9 +84,7 @@ def milp_inputs(user_params: Union[SizingInputs, SizingInputsWithShared],
 			"eff_bc": meter_sizing_params.eff_bc,
 			"eff_bd": meter_sizing_params.eff_bd,
 			"soc_max": meter_sizing_params.soc_max,
-			"deg_cost": meter_sizing_params.deg_cost,
-			"btm_evs": None,
-			"ewh": None
+			"deg_cost": meter_sizing_params.deg_cost
 		}
 
 	# build the self-consumption tariffs structure separately

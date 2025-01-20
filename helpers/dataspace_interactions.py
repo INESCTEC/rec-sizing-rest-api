@@ -7,6 +7,7 @@ import pickle
 import pytz
 import requests
 
+from copy import deepcopy
 from datetime import timedelta
 from dotenv import dotenv_values
 from loguru import logger
@@ -14,15 +15,24 @@ from tsg_client.controllers import TSGController
 from typing import Union
 
 from helpers.calculate_circle import haversine
-from helpers.indata_shelly_info import INDATA_SHELLY_INFO
-from helpers.sel_shelly_info import SEL_SHELLY_INFO
+from helpers.indata_shelly_info import (
+	INDATA_PV_INFO,
+	INDATA_SHELLY_INFO
+)
+from helpers.meter_locations import (
+	INDATA_LOCATION_INFO,
+	INDATA_LOCATIONS,
+	SEL_LOCATION_INFO,
+	SEL_LOCATIONS
+)
 from helpers.meter_tariff_cycles import (
 	INDATA_TARIFF_CYCLES,
 	SEL_TARIFF_CYCLES
 )
-from helpers.meter_locations import (
-	INDATA_LOCATIONS,
-	SEL_LOCATIONS
+from helpers.pvgis_interactions import fetch_pvgis
+from helpers.sel_shelly_info import (
+	SEL_PV_INFO,
+	SEL_SHELLY_INFO
 )
 from schemas.input_schemas import (
 	MeterByArea,
@@ -97,12 +107,21 @@ def fetch_indata(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 
 	# unpack user_params
 	meter_ids = user_params.meter_ids  # unequivocal meter ID to search in the dataspace
+	try:
+		shared_meter_ids = user_params.shared_meter_ids  # unequivocal meter ID for new shared meters
+	except AttributeError:
+		shared_meter_ids = set()
+
 	start_datetime = user_params.start_datetime  # start datetime.datetime variable
 	end_datetime = user_params.end_datetime  # end datetime.datetime variable
 	if start_datetime.tzinfo is None:
 		start_datetime = pytz.utc.localize(start_datetime)
 	if end_datetime.tzinfo is None:
 		end_datetime = pytz.utc.localize(end_datetime)
+
+	# if there are meters without PV or shared meters, that will require estimated data for potential PV generation,
+	# fetch here all necessary data from PVGIS for the period desired
+	pvgis_df = fetch_pvgis(start_datetime, end_datetime, *INDATA_LOCATION_INFO)
 
 	# todo: function to truncate dates (end_datetime) to ensure that the horizon is a multiple of 24h;
 	#  if changes are made to start_datetime or end_datetime, log a warning;
@@ -284,6 +303,12 @@ def fetch_indata(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 			energy_df['e_c'] = energy_df['value'].apply(lambda x: x if x >= 0.0 else 0.0)
 			energy_df['e_g'] = energy_df['value'].apply(lambda x: -x if x < 0.0 else 0.0)
 			del energy_df['value']
+			# check if the meter has PV, if not, fetch the expected generation from PVGIS;
+			# note that this will not be considered the PV generation of the meter
+			# since the initial PV power will be set to 0, but will only be used
+			# as the PV generation factor if new PV is to be installed in that meter
+			if INDATA_PV_INFO[shelly_id] == 0:
+				energy_df['e_g'] = pvgis_df['e_g']
 			# add the information about the "meter_id" once again
 			energy_df['meter_id'] = shelly_id
 			# add buy and sell tariffs' information
@@ -299,6 +324,28 @@ def fetch_indata(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 				final_df = energy_df
 			else:
 				final_df = pd.concat([final_df, energy_df])
+
+	# Include the data for new, shared, meters
+	for shelly_id in shared_meter_ids:
+		# the meter's PV generation profile will come from the PVGIS service
+		energy_df = deepcopy(pvgis_df)
+		# the meter's initial consumption is naturally 0
+		energy_df['e_c'] = 0
+		# add information about the new "meter_id"
+		energy_df['meter_id'] = shelly_id
+		# add buy and sell tariffs' information
+		# - check the tariff type for 'shared' IDs (one of "simples", "bi-horárias", "tri-horárias")
+		tariff_type = INDATA_TARIFF_CYCLES['shared']
+		# add buy and sell tariffs information for the meter_id
+		energy_df['buy_tariff'] = tariffs_df[tariff_type].loc[start_datetime:end_datetime]
+		# - obtain sell tariffs by considering 25% of the buy tariffs for the same period
+		energy_df['sell_tariff'] = energy_df['buy_tariff'] * 0.25
+
+		# concatenate parsed dataframe to final dataframe
+		if final_df.empty:
+			final_df = energy_df
+		else:
+			final_df = pd.concat([final_df, energy_df])
 
 	####################################################################################################################
 	# Verify data availability for all meter_ids
@@ -344,12 +391,20 @@ def fetch_sel(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 
 	# unpack user_params
 	meter_ids = user_params.meter_ids  # unequivocal meter ID to search in the dataspace
+	try:
+		shared_meter_ids = user_params.shared_meter_ids  # unequivocal meter ID for new shared meters
+	except AttributeError:
+		shared_meter_ids = set()
 	start_datetime = user_params.start_datetime  # start datetime.datetime variable
 	end_datetime = user_params.end_datetime  # end datetime.datetime variable
 	if start_datetime.tzinfo is None:
 		start_datetime = pytz.utc.localize(start_datetime)
 	if end_datetime.tzinfo is None:
 		end_datetime = pytz.utc.localize(end_datetime)
+
+	# if there are meters without PV or shared meters, that will require estimated data for potential PV generation,
+	# fetch here all necessary data from PVGIS for the period desired
+	pvgis_df = fetch_pvgis(start_datetime, end_datetime, *SEL_LOCATION_INFO)
 
 	# todo: function to truncate dates (end_datetime) to ensure that the horizon is a multiple of 24h;
 	#  if changes are made to start_datetime or end_datetime, log a warning;
@@ -546,6 +601,12 @@ def fetch_sel(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 			interpol_df = resampled_df.interpolate(method='slinear', fill_value='extrapolate', limit_direction='both')
 			# with the interpolation performed, the buffer datetime rows can be removed
 			energy_df = interpol_df.loc[start_datetime:end_datetime].copy()
+			# check if the meter has PV, if not, fetch the expected generation from PVGIS;
+			# note that this will not be considered the PV generation of the meter
+			# since the initial PV power will be set to 0, but will only be used
+			# as the PV generation factor if new PV is to be installed in that meter
+			if SEL_PV_INFO[shelly_id] == 0:
+				energy_df['e_g'] = pvgis_df['e_g']
 			# add the information about the "meter_id" once again
 			energy_df['meter_id'] = shelly_id
 			# add buy and sell tariffs' information
@@ -561,6 +622,28 @@ def fetch_sel(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 				final_df = energy_df
 			else:
 				final_df = pd.concat([final_df, energy_df])
+
+	# Include the data for new, shared, meters
+	for shelly_id in shared_meter_ids:
+		# the meter's PV generation profile will come from the PVGIS service
+		energy_df = deepcopy(pvgis_df)
+		# the meter's initial consumption is naturally 0
+		energy_df['e_c'] = 0
+		# add information about the new "meter_id"
+		energy_df['meter_id'] = shelly_id
+		# add buy and sell tariffs' information
+		# - check the tariff type for 'shared' IDs (one of "simples", "bi-horárias", "tri-horárias")
+		tariff_type = SEL_TARIFF_CYCLES['shared']
+		# add buy and sell tariffs information for the meter_id
+		energy_df['buy_tariff'] = tariffs_df[tariff_type].loc[start_datetime:end_datetime]
+		# - obtain sell tariffs by considering 25% of the buy tariffs for the same period
+		energy_df['sell_tariff'] = energy_df['buy_tariff'] * 0.25
+
+		# concatenate parsed dataframe to final dataframe
+		if final_df.empty:
+			final_df = energy_df
+		else:
+			final_df = pd.concat([final_df, energy_df])
 
 	####################################################################################################################
 	# Verify data availability for all meter_ids
