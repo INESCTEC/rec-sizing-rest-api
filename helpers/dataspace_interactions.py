@@ -307,6 +307,10 @@ def fetch_indata(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 			# as the PV generation factor if new PV is to be installed in that meter
 			if INDATA_PV_INFO[shelly_id] == 0:
 				energy_df['e_g'] = pvgis_df['e_g']
+			# else normalize the e_g values by the initial installed capacity
+			# to obtain a generation profile between 0 and 1
+			else:
+				energy_df['e_g'] /= (INDATA_PV_INFO[shelly_id] * 0.25)
 			# add the information about the "meter_id" once again
 			energy_df['meter_id'] = shelly_id
 			# add buy and sell tariffs' information
@@ -605,6 +609,10 @@ def fetch_sel(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 			# as the PV generation factor if new PV is to be installed in that meter
 			if SEL_PV_INFO[shelly_id] == 0:
 				energy_df['e_g'] = pvgis_df['e_g']
+			# else normalize the e_g values by the initial installed capacity
+			# to obtain a generation profile between 0 and 1
+			else:
+				energy_df['e_g'] /= (SEL_PV_INFO[shelly_id] * 0.25)
 			# add the information about the "meter_id" once again
 			energy_df['meter_id'] = shelly_id
 			# add buy and sell tariffs' information
