@@ -3,6 +3,10 @@ import secrets
 import sqlite3
 from typing import Union
 
+from helpers.meter_contracted_powers import (
+	INDATA_CONTRACTED_POWERS,
+	SEL_CONTRACTED_POWERS
+)
 from helpers.meter_installed_pv import (
 	INDATA_PV_INFO,
 	SEL_PV_INFO
@@ -58,11 +62,25 @@ def milp_inputs(user_params: Union[SizingInputs, SizingInputsWithShared],
 	# check the originally installed capacities
 	dataset_origin = user_params.dataset_origin
 	pv_info = SEL_PV_INFO if dataset_origin == 'SEL' else INDATA_PV_INFO
+	contracted_powers_info = SEL_CONTRACTED_POWERS if dataset_origin == 'SEL' else INDATA_CONTRACTED_POWERS
 
 	# build the meters structure separately
 	meters = {}
 	for meter_id in meter_ids:
+		# get the hardcoded PV installed capacity for the meter;
+		# if the meter ID is not in the list, it means it is a new "shared" meter ID, with no initial installed capacity
+		p_gn_init = pv_info.get(meter_id) \
+			if pv_info.get(meter_id) is not None \
+			else 0
+
+		# get the hardcoded contracted power for the meter;
+		# if the meter ID is not in the list, it means it is a new "shared" meter ID, so get the value for "shared"
+		p_meter_max = contracted_powers_info.get(meter_id) \
+			if contracted_powers_info.get(meter_id) is not None \
+			else contracted_powers_info.get('shared')
+
 		meter_sizing_params = [x for x in sizing_params if x.meter_id == meter_id][0]
+
 		meters[meter_id] = {
 			"l_buy": all_data_df.loc[
 				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['buy_tariff'].to_list(),
@@ -73,13 +91,13 @@ def milp_inputs(user_params: Union[SizingInputs, SizingInputsWithShared],
 			"l_bic": meter_sizing_params.l_bic,
 			"e_c": all_data_df.loc[
 				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['e_c'].to_list(),
-			"p_meter_max": 100,
-			"p_gn_init": pv_info.get(meter_id),
+			"p_meter_max": p_meter_max,
+			"p_gn_init": p_gn_init,
 			'e_g_factor': all_data_df.loc[
 				all_data_df['meter_id'] == meter_id].sort_values(['datetime'])['e_g'].to_list(),
 			"p_gn_min": meter_sizing_params.minimum_new_pv_power,
 			"p_gn_max": meter_sizing_params.maximum_new_pv_power,
-			"e_bn_init": 0.0,
+			"e_bn_init": 0.0,  # no initial storage capacity is considered for any meter of any REC
 			"e_bn_min": meter_sizing_params.minimum_new_storage_capacity,
 			"e_bn_max": meter_sizing_params.maximum_new_storage_capacity,
 			"soc_min": meter_sizing_params.soc_min,

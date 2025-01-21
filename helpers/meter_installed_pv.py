@@ -37,7 +37,7 @@ SEL_PV_INFO = {
 	'f3c07b9293f7': 0,
 	'f4a53aae164a': 0,
 	'f4f44dd669e8': 0,
-	'fbe599917f4d': 0,
+	'fbe599917f4d': 0
 }
 
 INDATA_PV_INFO = {

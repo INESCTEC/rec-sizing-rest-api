@@ -52,7 +52,7 @@ SEL and IN-DATA are hardcoded. Given the sensitive nature of those static parame
 location of the REC meters and the contracts celebrated with their respective retailers, the hardcoded values are 
 fictitious. Such information can, nonetheless be edited in the following scripts:
 - ```/helpers/indata_shelly_info.py``` ----- required configurations for requesting data from IN-DATA connector
-- ```/helpers/meter_contracted_power.py``` - meters' contracted power, in kVA
+- ```/helpers/meter_contracted_power.py``` - meters' maximum allowed contracted power, in kVA
 - ```/helpers/meter_installed_pv.py``` ----- meters' installed PV capacity, in kWp
 - ```/helpers/meter_locations.py``` -------- meters' geographic location, provided as latitude and longitude coordinates
 - ```/helpers/meter_tariff_cycles.py``` ---- meters' contracted fixed tariff cycle, from ("simples", "bi-horárias", 

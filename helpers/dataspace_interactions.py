@@ -72,7 +72,7 @@ def fetch_dataspace(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 	Auxiliary function to fetch all necessary data to answer a "vanilla" request, from the dataspace.
 	Necessary data includes:
 	- historical metered consumption and generation (if existent) for the period defined in the request;
-	- contracted tariffs for buying and selling energy  to the retailer.
+	- contracted tariffs for buying and selling energy to the retailer.
 	:param user_params: class with all parameters passed by the user
 	:return: a pandas DataFrame with 6 columns: datetime, e_c, e_g, meter_id, buy_tariff and sell_tariff,
 		a pandas Series with the self-consumption tariffs applicable to the desired operation horizon,
