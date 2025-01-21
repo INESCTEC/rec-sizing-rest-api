@@ -94,14 +94,14 @@ class IndividualCosts(BaseModel):
 		examples=['Meter#1']
 	)
 	individual_cost: float = Field(
-		description='The total cost (operation + investment) for the optimization horizon calculated for the individual/member, '
-					'without considering the cost for degradation of the BESS, in €. It includes'
-					'the costs of the shared assets'
+		description='The total cost (operation + investment) for the optimization horizon calculated '
+					'for the individual/member, without considering the cost for degradation of the BESS, in €. '
+					'It includes the costs of the shared assets'
 	)
 	individual_savings: float = Field(
 		description='Total savings obtained for that meter ID, in €. <br />'
-					'This represents the difference between the cost obtained for the individual/member after running the sizing '
-					'algorithm, considering the possibility to install new PV and/or storage capacities '
+					'This represents the difference between the cost obtained for the individual/member after running '
+					'the sizing algorithm, considering the possibility to install new PV and/or storage capacities '
 					'behind-the-meter, and the respective operation cost for the same period, without that possibility, '
 					'i.e., by simply operating in an optimal fashion the assets that are already installed in the '
 					'meter.'

@@ -32,8 +32,8 @@ def generate_order_id() -> str:
 
 
 def milp_inputs(user_params: Union[SizingInputs, SizingInputsWithShared],
-				all_data_df: pd.core.frame.DataFrame,
-				self_cons_tariffs_series: pd.core.series.Series) -> BackpackCollectivePoolDict:
+				all_data_df: pd.DataFrame,
+				self_cons_tariffs_series: pd.Series) -> BackpackCollectivePoolDict:
 	"""
 	Auxiliary function to build the inputs for post-delivery MILP functions
 	:param user_params: hyperparameters passed by the user
