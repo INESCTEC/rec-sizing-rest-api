@@ -36,33 +36,3 @@ INDATA_SHELLY_INFO = {
 	'34987a675060': 'total',
 	'0cb815fd49c4': 'a'
 }
-
-# Hardcoded information about which shelly IDs from INDATA have PV generation
-# and for which the registered generation measurements will be considered when
-# computing the respective PV generation factor;
-# Shelly IDs without PV will have their PV generation factor retrieved from the
-# PVGIS service.
-# The values for each shelly ID represent the initial PV installed capacities in kWp
-
-INDATA_PV_INFO = {
-	'0cb815fd4dec': 0,
-	'0cb815fd4bcc': 0,
-	'0cb815fc5350': 0,
-	'0cb815fcc358': 0,
-	'34987a685128': 0,
-	'0cb815fcc31c': 0,
-	'0cb815fcf5b4': 0,
-	'0cb815fd15bc': 0,
-	'0cb815fd4b30': 0,
-	'0cb815fc72bc': 0,
-	'0cb815fd3608': 0,
-	'34987a675924': 0,
-	'0cb815fcc220': 0,
-	'0cb815fc6178': 0,
-	'0cb815fd1d38': 0,
-	'0cb815fd5654': 0,
-	'0cb815fd534c': 0,
-	'34987a676138': 0,
-	'34987a675060': 0,
-	'0cb815fd49c4': 0
-}

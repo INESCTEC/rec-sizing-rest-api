@@ -3,8 +3,10 @@ import secrets
 import sqlite3
 from typing import Union
 
-from helpers.indata_shelly_info import INDATA_PV_INFO
-from helpers.sel_shelly_info import SEL_PV_INFO
+from helpers.meter_installed_pv import (
+	INDATA_PV_INFO,
+	SEL_PV_INFO
+)
 from rec_sizing.custom_types.collective_milp_pool_types import BackpackCollectivePoolDict
 from schemas.input_schemas import (
 	SizingInputs,

@@ -15,25 +15,23 @@ from tsg_client.controllers import TSGController
 from typing import Union
 
 from helpers.calculate_circle import haversine
-from helpers.indata_shelly_info import (
-	INDATA_PV_INFO,
-	INDATA_SHELLY_INFO
-)
+from helpers.indata_shelly_info import INDATA_SHELLY_INFO
 from helpers.meter_locations import (
 	INDATA_LOCATION_INFO,
 	INDATA_LOCATIONS,
 	SEL_LOCATION_INFO,
 	SEL_LOCATIONS
 )
+from helpers.meter_installed_pv import (
+	INDATA_PV_INFO,
+	SEL_PV_INFO
+)
 from helpers.meter_tariff_cycles import (
 	INDATA_TARIFF_CYCLES,
 	SEL_TARIFF_CYCLES
 )
 from helpers.pvgis_interactions import fetch_pvgis
-from helpers.sel_shelly_info import (
-	SEL_PV_INFO,
-	SEL_SHELLY_INFO
-)
+from helpers.sel_shelly_info import SEL_SHELLY_INFO
 from schemas.input_schemas import (
 	MeterByArea,
 	SizingInputs,
