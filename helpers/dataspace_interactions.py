@@ -67,7 +67,7 @@ def fetch_meters_location(meter_by_area: MeterByArea) -> MeterIDs:
 
 
 def fetch_dataspace(user_params: Union[SizingInputs, SizingInputsWithShared]) \
-		-> (pd.core.frame.DataFrame, pd.Series, list[str], list[str], dict[str, list[str]]):
+		-> (pd.DataFrame, pd.Series, list[str], list[str], dict[str, list[str]]):
 	"""
 	Auxiliary function to fetch all necessary data to answer a "vanilla" request, from the dataspace.
 	Necessary data includes:
@@ -441,9 +441,6 @@ def fetch_sel(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 		'ACCESS_URL': 'https://enershare.smartenergylab.pt',
 		'AGENT_ID': 'urn:ids:enershare:participants:SEL'
 	}
-
-	# get authorization token
-	AUTH = {'Authorization': f'Token {config["TOKEN"]}'}
 
 	# get the external connector's self-description
 	logger.info(f'Retrieving connector self-description...')
