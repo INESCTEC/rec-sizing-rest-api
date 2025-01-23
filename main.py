@@ -45,7 +45,18 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 # Initialize the app
 app = FastAPI(
 	title='REC Sizing API',
-	description='REST API for sizing a REC.',
+	description='REST API for sizing a Renewable Energy Community (REC). Namely the tool can size additional PV '
+				'capacity to households, additional storage capacity and even additional "shared" meters with their '
+				'own PV and storage capacities that are owned by other members of a REC. The tool simulates the '
+				'operation of the previous and new assets, establishes the optimal transactions in a local energy '
+				'market (LEM) and provides both the sizig ad the operation strategy outputs. Given the complexity of '
+				'sizing problems that consider big RECs (i.e., several members) and extensive historical datasets, '
+				'a more lightweight, clustered version of the problem can be chosen that will provide faster, '
+				'but less accurate results. The API uses data from two datasets within the '
+				'ENERSHARE project, Smart Energy Lab (SEL) and IN-DATA, namely real historical net load measurements '
+				'of several households that have agreed to share their data. Sensitive data, such as '
+				'the households geographical location and contracts with energy retailers, required for using this '
+				'tool, was fabricated and can be altered at will in the code of the API itself.',
 	version='0.2.1'
 )
 
