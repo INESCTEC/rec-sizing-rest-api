@@ -23,7 +23,7 @@ def run_dual_thread(user_params: Union[SizingInputs, SizingInputsWithShared],
 	# update the database with an error and an indication of which data is missing
 	if missing_ids:
 		logger.warning('Missing meter IDs in dataspace.')
-		message = f'One or more meter IDs not found on registry system: {missing_ids}'
+		message = f'Data for one or more meter IDs not found on registry system: {missing_ids}'
 		curs.execute('''
 			UPDATE Orders
 			SET processed = ?, error = ?, message = ?

@@ -50,7 +50,7 @@ class OrderNotFound(BaseModel):
 
 class MeterIDNotFound(BaseModel):
 	message: str = Field(
-		examples=['One or more meter IDs not found on registry system.']
+		examples=['Data for one or more meter IDs not found on registry system.']
 	)
 	order_id: str = Field(
 		max_length=45,

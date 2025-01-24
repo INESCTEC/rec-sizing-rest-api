@@ -498,7 +498,7 @@ def fetch_sel(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 					# define the request parameters
 					params = {
 						'request_type': 'fetch',
-						'participant_access_token': meter_id,
+						# 'participant_access_token': meter_id,
 						'participant_permanent_code': meter_id,
 						'start_date': interval_start,
 						'device_type': device_type,
@@ -568,6 +568,9 @@ def fetch_sel(user_params: Union[SizingInputs, SizingInputsWithShared]) \
 		# re-order and re-index the dataframe
 		dataset_df.sort_values(['meter_id', 'datetime'], inplace=True)
 		dataset_df.set_index('datetime', inplace=True)
+		# if the meters do not have initial PV, a new column must be provided
+		if 'PV' not in dataset_df.columns:
+			dataset_df['PV'] = 0
 		# re-order and rename the columns on the dataframe
 		dataset_df = dataset_df[['MAIN_METER', 'PV', 'meter_id']]
 		dataset_df.columns = ['e_c', 'e_g', 'meter_id']
