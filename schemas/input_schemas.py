@@ -11,6 +11,7 @@ from pydantic import (
 from pydantic_extra_types.coordinate import Coordinate
 from typing import (
 	List,
+	Optional,
 	Set
 )
 
@@ -25,14 +26,14 @@ class MeterByArea(BaseModel):
 		default='INDATA',
 		examples=['INDATA']
 	)
-	rec_location: Coordinate or None = Field(
+	rec_location: Optional[Coordinate] = Field(
 		default={
 			'latitude': 0.0,
 			'longitude': 0.0
 		},
 		description='Latitude and Longitude of the REC.'
 	)
-	radius: int or None = Field(
+	radius: Optional[int] = Field(
 		default=4,
 		ge=0,
 		description='Radius, in km, that gives origin to a circle with the center in Latitude and Longitude. Meters '
@@ -139,14 +140,17 @@ class SizingInputs(BaseModel):
 					'behind the meter IDs of the REC.'
 	)
 
+	@classmethod
 	@field_validator('start_datetime')
 	def parse_start_datetime(cls, start_dt):
 		return start_dt.astimezone(timezone.utc)
 
+	@classmethod
 	@field_validator('end_datetime')
 	def parse_start_endtime(cls, end_dt):
 		return end_dt.astimezone(timezone.utc)
 
+	@classmethod
 	@field_validator('end_datetime')
 	def is_end_after_start(cls, end_dt, values):
 		start_dt = values.data['start_datetime']
@@ -191,6 +195,7 @@ class SizingInputsWithShared(SizingInputs):
 	class OwnershipValidator(BaseModel):
 		ownerships: list[Ownership]
 
+		@classmethod
 		@field_validator('ownerships')
 		def ownerships_sum(cls, ownerships):
 			# Group ownerships by shared_meter_id
