@@ -140,17 +140,14 @@ class SizingInputs(BaseModel):
 					'behind the meter IDs of the REC.'
 	)
 
-	@classmethod
 	@field_validator('start_datetime')
 	def parse_start_datetime(cls, start_dt):
 		return start_dt.astimezone(timezone.utc)
 
-	@classmethod
 	@field_validator('end_datetime')
 	def parse_start_endtime(cls, end_dt):
 		return end_dt.astimezone(timezone.utc)
 
-	@classmethod
 	@field_validator('end_datetime')
 	def is_end_after_start(cls, end_dt, values):
 		start_dt = values.data['start_datetime']
@@ -195,7 +192,6 @@ class SizingInputsWithShared(SizingInputs):
 	class OwnershipValidator(BaseModel):
 		ownerships: list[Ownership]
 
-		@classmethod
 		@field_validator('ownerships')
 		def ownerships_sum(cls, ownerships):
 			# Group ownerships by shared_meter_id
