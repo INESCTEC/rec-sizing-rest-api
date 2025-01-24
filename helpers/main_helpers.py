@@ -45,6 +45,10 @@ def milp_inputs(user_params: Union[SizingInputs, SizingInputsWithShared],
 	all_data_df.index.name = 'datetime'
 	all_data_df.reset_index(inplace=True)
 	sizing_params = user_params.sizing_params_by_meter
+	# Although the "sizing_params_for_shared_meter" structure is demanded for requests performed to the endpoint
+	# "sizing_with_shared_assets", the structure does not exist when calling "sizing_without_shared_assets" hence
+	# the following try and except; note that the new variable "sizing_params" is not intended to distinguish between
+	# shared meters and existing meters, just gathers all information for all meters
 	try:
 		sizing_params.extend(user_params.sizing_params_for_shared_meter)
 	except AttributeError:
