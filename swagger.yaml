@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: REC Sizing API
-  description: REST API for sizing a REC.
-  version: 0.2.0
+  description: REST API for sizing a Renewable Energy Community (REC). Namely the tool can size additional PV capacity to households, additional storage capacity and even additional "shared" meters with their own PV and storage capacities that are owned by other members of a REC. The tool simulates the operation of the previous and new assets, establishes the optimal transactions in a local energy market (LEM) and provides both the sizig ad the operation strategy outputs. Given the complexity of sizing problems that consider big RECs (i.e., several members) and extensive historical datasets, a more lightweight, clustered version of the problem can be chosen that will provide faster, but less accurate results. The API uses data from two datasets within the ENERSHARE project, Smart Energy Lab (SEL) and IN-DATA, namely real historical net load measurements of several households that have agreed to share their data. Sensitive data, such as the households geographical location and contracts with energy retailers, required for using this tool, was fabricated and can be altered at will in the code of the API itself.
+  version: 0.2.1
 paths:
   /search_meters_in_area:
     post:
@@ -512,7 +512,7 @@ components:
     DatasetOrigin:
       type: string
       enum:
-        - CEVE
+        - INDATA
         - SEL
       title: DatasetOrigin
     HTTPValidationError:
@@ -535,7 +535,7 @@ components:
         individual_cost:
           type: number
           title: Individual Cost
-          description: The total cost (operation + investment) for the optimization horizon calculated for the individual/member, without considering the cost for degradation of the BESS, in €. It includesthe costs of the shared assets
+          description: The total cost (operation + investment) for the optimization horizon calculated for the individual/member, without considering the cost for degradation of the BESS, in €. It includes the costs of the shared assets
         individual_savings:
           type: number
           title: Individual Savings
@@ -765,10 +765,10 @@ components:
           description: |-
             Dataset origin from which the meter IDs' data is to be retrieved from. Two options are provided:
              - SEL (Smart Energy Lab)
-             - CEVE (Cooperativa Elétrica Vale d'Este
-          default: CEVE
+             - INDATA
+          default: INDATA
           examples:
-            - CEVE
+            - INDATA
         rec_location:
           anyOf:
             - $ref: '#/components/schemas/Coordinate'
@@ -779,14 +779,17 @@ components:
               maxItems: 2
               minItems: 2
             - type: string
+            - type: 'null'
           title: Rec Location
           description: Latitude and Longitude of the REC.
           default:
             latitude: 0
             longitude: 0
         radius:
-          type: integer
-          minimum: 0
+          anyOf:
+            - type: integer
+              minimum: 0
+            - type: 'null'
           title: Radius
           description: Radius, in km, that gives origin to a circle with the center in Latitude and Longitude. Meters within this circle will be retrieved from dataspace to form the REC.
           default: 4
@@ -820,7 +823,7 @@ components:
           type: string
           title: Message
           examples:
-            - One or more meter IDs not found on registry system.
+            - Data for one or more meter IDs not found on registry system.
         order_id:
           type: string
           maxLength: 45
@@ -1032,7 +1035,7 @@ components:
           description: |-
             Dataset origin from which the meter IDs' data is to be retrieved from. Two options are provided:
              - SEL (Smart Energy Lab)
-             - CEVE (Cooperativa Elétrica Vale d'Este
+             - INDATA
           examples:
             - SEL
         nr_representative_days:
@@ -1086,7 +1089,7 @@ components:
           description: |-
             Dataset origin from which the meter IDs' data is to be retrieved from. Two options are provided:
              - SEL (Smart Energy Lab)
-             - CEVE (Cooperativa Elétrica Vale d'Este
+             - INDATA
           examples:
             - SEL
         nr_representative_days:
