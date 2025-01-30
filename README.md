@@ -15,7 +15,10 @@ A REST API for **sizing and planning the long-term operation** of a Renewable En
 Citizen Energy Community (CEC) that can promote the minimization of the members’ operation cost with energy.
 This tool was developed under the *Enershare* project.
 
-Developers // Contacts:
+> **_NOTE:_** This software is on active development and depends on an extra Python Library 
+> (https://github.com/INESCTEC/rec-sizing).
+
+## Developers // Contacts:
 
 * Armando Moreno (armando.moreno@inesctec.pt)
 * Pedro Macedo (pedro.m.macedo@inesctec.pt)
