@@ -144,10 +144,10 @@ class InvestmentsPerMeter(BaseModel):
 					'i.e., by simply operating in an optimal fashion the assets that are already installed in the '
 					'meter.'
 	)
-	installed_pv_power: float = Field(
+	installed_pv: float = Field(
 		description='Newly installed PV power in the meter, in kW.'
 	)
-	installed_storage_capacity: float = Field(
+	installed_storage: float = Field(
 		description='Newly installed storage capacity in the meter, in kWh.'
 	)
 	contracted_power: float = Field(
