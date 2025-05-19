@@ -852,12 +852,12 @@
             "title": "Individual Savings",
             "description": "Total savings obtained for that meter ID, in €. <br />This represents the difference between the cost obtained for the meter after running the sizing algorithm, considering the possibility to install new PV and/or storage capacities behind-the-meter, and the respective operation cost for the same period, without that possibility, i.e., by simply operating in an optimal fashion the assets that are already installed in the meter."
           },
-          "installed_pv_power": {
+          "installed_pv": {
             "type": "number",
             "title": "Installed Pv Power",
             "description": "Newly installed PV power in the meter, in kW."
           },
-          "installed_storage_capacity": {
+          "installed_storage": {
             "type": "number",
             "title": "Installed Storage Capacity",
             "description": "Newly installed storage capacity in the meter, in kWh."
@@ -893,8 +893,8 @@
           "meter_id",
           "individual_cost",
           "individual_savings",
-          "installed_pv_power",
-          "installed_storage_capacity",
+          "installed_pv",
+          "installed_storage",
           "contracted_power",
           "total_pv",
           "total_storage",
